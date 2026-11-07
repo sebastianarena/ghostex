@@ -10,6 +10,7 @@ pub mod agent_message_card;
 pub mod api_errors;
 pub mod approval_wait;
 pub mod background_rows;
+pub mod chat_look;
 pub mod command_exits;
 pub mod deferred_work;
 pub mod diff;

@@ -166,6 +166,9 @@ pub struct TranscriptViewState {
     pub tool_cards: bool,
     /// The Default to Detailed view setting, which a chat with no level of its own follows.
     pub detailed_default: bool,
+    /// The chat look settings (`transcript/chat_look.rs`), all Default unless the user picked one.
+    /// A change throws the cached projections away.
+    pub chat_look: crate::transcript::chat_look::ChatLook,
 }
 
 /// One message's full projection, with the source it was built from.
@@ -282,6 +285,7 @@ impl Default for TranscriptViewState {
             session_directory_revision: 0,
             tool_cards: false,
             detailed_default: false,
+            chat_look: Default::default(),
         }
     }
 }
@@ -296,6 +300,13 @@ impl TranscriptViewState {
         self.items = Default::default();
         self.projection_inputs = None;
         self.settled = None;
+    }
+
+    /// Whether the projection draws tool call cards: the Tool call cards setting, unless Agent work
+    /// is Quiet lines or Grouped, which replace them (`transcript/chat_look.rs`).
+    pub fn effective_tool_cards(&self) -> bool {
+        self.tool_cards
+            && self.chat_look.agent_work == crate::transcript::chat_look::AgentWork::Default
     }
 
     /// Whether any row is still drawn as a plain-text placeholder, which is what keeps the 0 ms

@@ -716,7 +716,7 @@ pub fn scope<'a>(state: &'a ChatState, view: &'a TranscriptViewState) -> Project
         agent_message_deliveries: state.session.agent_message_deliveries.as_ref(),
         backfilled: &view.backfilled,
         question_forms: std::cell::OnceCell::new(),
-        tool_cards: view.tool_cards,
+        tool_cards: view.effective_tool_cards(),
         picture_digests: &view.picture_digests,
         seen_pictures: std::cell::OnceCell::new(),
     }

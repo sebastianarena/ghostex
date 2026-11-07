@@ -15,6 +15,10 @@
 //! - Absent, `null` and a value are three different things on the wire. Use `Tri` where the
 //!   producer can leave a key out.
 //! - Integers stay integers. A JSON `1` written back as `1.0` is a contract break.
+//! - `chatLook` (`transcript/chat_look.rs`) is absent while every chat look setting is Default,
+//!   which is today's chat; otherwise it is
+//!   `{"messageLayout":"default|left","userStyle":"default|band|rule|names","agentWork":"default|quiet|grouped","statusInTranscript":bool}`,
+//!   and `messageLayout` is the effective layout (Left whenever `userStyle` is not Default).
 //! - No callbacks into the core, no generics and no lifetimes at the public boundary, so the same
 //!   API works over UniFFI.
 //!

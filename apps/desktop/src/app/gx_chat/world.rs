@@ -538,6 +538,9 @@ fn settings_moved(
         || settings.chat_text_strength.is_some_and(|strength| {
             ghostex_gx_chat_core::transcript::text_strength::text_strength(strength)
                 != state.core.chat_text_strength
+        })
+        || settings.chat_look.as_ref().is_some_and(|look| {
+            state.transcript_view.chat_look.with_settings(look) != state.transcript_view.chat_look
         }))
     .then(|| Event::SettingsChanged(Box::new(settings.clone())))
 }

@@ -134,10 +134,16 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
     state.extras.minimap = projection.minimap;
     let view = &mut state.transcript_view;
     let mut items = projection.items;
-    view.worked_line = projection.worked_turn.map(|(id, label)| {
-        without_worked_time(&mut items, &id);
-        label
-    });
+    // Status line in the chat keeps the time on the turn's own fold and leaves the card above the
+    // chat box without a worked line (`transcript/chat_look.rs`).
+    view.worked_line = if view.chat_look.status_in_transcript {
+        None
+    } else {
+        projection.worked_turn.map(|(id, label)| {
+            without_worked_time(&mut items, &id);
+            label
+        })
+    };
     view.items = std::sync::Arc::new(TranscriptItems::with_settled(&settled_rows, items));
     view.final_ids = projection.final_ids;
     view.answered_pages = projection.answered_pages;

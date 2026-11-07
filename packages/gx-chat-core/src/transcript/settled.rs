@@ -464,7 +464,7 @@ impl SettledPrefix {
             agent_path: view.agent_path.clone(),
             working_directory: view.working_directory.clone(),
             session_directory_revision: view.session_directory_revision,
-            tool_cards: view.tool_cards,
+            tool_cards: view.effective_tool_cards(),
             picture_digests_revision: view.picture_digests_revision,
         }
     }
@@ -1195,7 +1195,7 @@ pub fn scope<'a>(state: &'a ChatState, view: &'a TranscriptViewState) -> Project
         agent_message_deliveries: state.session.agent_message_deliveries.as_ref(),
         backfilled: &view.backfilled,
         question_forms: std::cell::OnceCell::from(scans.marked_forms()),
-        tool_cards: view.tool_cards,
+        tool_cards: view.effective_tool_cards(),
         picture_digests: &view.picture_digests,
         seen_pictures: std::cell::OnceCell::new(),
     }

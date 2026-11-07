@@ -167,7 +167,7 @@ fn build_after(
         agent_message_deliveries: state.session.agent_message_deliveries.as_ref(),
         backfilled: &view.backfilled,
         question_forms: std::cell::OnceCell::from(forms),
-        tool_cards: view.tool_cards,
+        tool_cards: view.effective_tool_cards(),
         picture_digests: &view.picture_digests,
         seen_pictures: std::cell::OnceCell::new(),
     };
