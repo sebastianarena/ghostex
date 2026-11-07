@@ -113,7 +113,7 @@ impl NativeChatView {
         self.in_subagent = !main;
         // The main list's length, which holds the status row too while it shows (status_tail.rs).
         let rows = if main {
-            self.list.item_count()
+            self.transcript_list_rows()
         } else {
             items.len()
         };

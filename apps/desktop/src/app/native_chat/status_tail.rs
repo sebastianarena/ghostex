@@ -31,6 +31,15 @@ impl NativeChatView {
             && !card["label"].is_null()
     }
 
+    /// How many rows the transcript list holds: the transcript's rows, and the status row while it
+    /// shows (`sync_status_tail` keeps the two equal).
+    ///
+    /// CDXC:SessionChat 2026-11-07 WHY:
+    /// Rows are drawn inside the list's own layout, which holds the list's state borrowed, so a row asking the list itself (`ListState::item_count` and the like) panicked with "RefCell already mutably borrowed" and left every chat empty. Code that runs while rows draw takes the count from here.
+    pub(super) fn transcript_list_rows(&self) -> usize {
+        self.items.len() + usize::from(self.status_tail)
+    }
+
     /// Adds or removes the status row after the transcript's last row, before the rows are drawn,
     /// and draws them again this frame when it moved.
     pub(super) fn sync_status_tail(&mut self, p: &ChatAppearance, window: &mut Window) {
@@ -67,7 +76,7 @@ impl NativeChatView {
             crate::app::helpers::window_glass_active_for(self.main_window),
         );
         let s = p.scale;
-        let rows = self.list.item_count();
+        let rows = self.transcript_list_rows();
         self.detail_rows.start_row(true, index, rows);
         self.detail_rows.end_row();
         // A row the list still holds for a moment after the line went (the next render takes it
@@ -124,7 +133,7 @@ impl NativeChatView {
         if !self.status_tail {
             return None;
         }
-        let row = self.list.item_count().checked_sub(1)?;
+        let row = self.transcript_list_rows().checked_sub(1)?;
         let reduced_motion = crate::app::helpers::gpui_macos_reduce_motion_enabled();
         let lead = working_line_lead(&self.snapshot["workingCard"], p, reduced_motion)?;
         Some(
