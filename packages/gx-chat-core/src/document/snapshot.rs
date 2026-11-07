@@ -307,6 +307,10 @@ pub struct Document {
     /// `messageLayout` is the effective layout. Family b.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chat_look: Option<crate::transcript::chat_look::ChatLook>,
+    /// Who speaks on the agent's Names line (`transcript/chat_look.rs` `chat_speaker`), absent
+    /// unless Your messages is Names. Family e.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chat_speaker: Option<crate::transcript::chat_look::ChatSpeaker>,
 
     // ---- modes and loading -----------------------------------------------
     pub summary_mode: bool,

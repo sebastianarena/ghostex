@@ -135,6 +135,40 @@ impl ChatLook {
     }
 }
 
+/// Who speaks on the agent's Names line (Your messages set to Names): the name and logo the model
+/// pill shows (the Hermes bot's chip, else the pill's agent logo), else the session's agent as the
+/// new-session welcome names it. Published as `chatSpeaker` only under Names, so the desktop, the
+/// web build and the phone take the name from one place.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatSpeaker {
+    pub name: String,
+    /// The agent's artwork id (`agent-icons/<icon>.svg`), absent when it has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+}
+
+/// The document's `chatSpeaker`: `None` unless Your messages is Names, or when no name is known
+/// (then no agent line is drawn).
+pub fn chat_speaker(
+    look: &ChatLook,
+    labels: &crate::menus::options::OptionLabels,
+    agent: Option<&str>,
+) -> Option<ChatSpeaker> {
+    if look.user_style != UserStyle::Names {
+        return None;
+    }
+    let chip = labels.agent_chip.as_ref();
+    let name = chip
+        .map(|chip| chip.name.clone())
+        .or_else(|| crate::extras::welcome::welcome_agent_name(agent))?;
+    let icon = chip
+        .and_then(|chip| chip.icon.clone())
+        .or_else(|| labels.agent_icon.clone())
+        .or_else(|| crate::extras::welcome::welcome_agent_icon(agent, None));
+    Some(ChatSpeaker { name, icon })
+}
+
 /// Adopts what `settings` names, throwing the cached projections away when the look moved, the
 /// same way [`crate::transcript::tool_card::set_enabled`] does: every row's model depends on it.
 pub fn apply(view: &mut crate::state::TranscriptViewState, settings: &ChatLookSettings) {

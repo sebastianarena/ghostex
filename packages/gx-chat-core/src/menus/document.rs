@@ -29,6 +29,11 @@ pub fn document(state: &ChatState, context: &ChatContext, into: &mut Document) {
         Some(tray) => Tri::Value(tray),
         None => Tri::Absent,
     };
+    into.chat_speaker = crate::transcript::chat_look::chat_speaker(
+        &state.transcript_view.chat_look,
+        &options.option_labels,
+        state.session.agent.as_deref(),
+    );
     into.option_labels = Tri::Value(to_value(&options.option_labels));
     into.option_menus = Tri::Value(to_value(&options.option_menus));
     into.session_options = Tri::Value(to_value(&options.session_options));

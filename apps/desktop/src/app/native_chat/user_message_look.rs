@@ -164,20 +164,16 @@ impl NativeChatView {
     }
 
     /// The name line that opens the agent's reply under Names: its logo on its accent, then its
-    /// name, both from where the model pill reads them (`optionLabels`), or the session's agent.
+    /// name, both from the document's `chatSpeaker` (gx-chat-core `chat_look::chat_speaker`, which
+    /// the phone reads too). Nothing when the core names no speaker.
     pub(super) fn agent_name_line(&self, p: &ChatAppearance) -> Option<AnyElement> {
         let s = p.scale;
-        let labels = &self.snapshot["optionLabels"];
-        let agent = self.snapshot["agent"].as_str();
-        let name = labels["agentChip"]["name"]
+        let speaker = &self.snapshot["chatSpeaker"];
+        let name = speaker["name"]
             .as_str()
-            .map(str::to_owned)
-            .or_else(|| ghostex_gx_chat_core::extras::welcome::welcome_agent_name(agent))?;
-        let icon = labels["agentChip"]["icon"]
-            .as_str()
-            .or_else(|| labels["agentIcon"].as_str())
-            .map(str::to_owned)
-            .or_else(|| ghostex_gx_chat_core::extras::welcome::welcome_agent_icon(agent, None));
+            .filter(|name| !name.is_empty())?
+            .to_owned();
+        let icon = speaker["icon"].as_str().map(str::to_owned);
         let glyph = match &icon {
             Some(icon) => svg()
                 .path(format!("agent-icons/{icon}.svg"))

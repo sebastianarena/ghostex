@@ -19,6 +19,8 @@
 //!   which is today's chat; otherwise it is
 //!   `{"messageLayout":"default|left","userStyle":"default|band|rule|names","agentWork":"default|quiet|grouped","statusInTranscript":bool}`,
 //!   and `messageLayout` is the effective layout (Left whenever `userStyle` is not Default).
+//!   `chatSpeaker` (`{"name", "icon"?}`, the agent's Names line) is present only while
+//!   `userStyle` is `names`.
 //! - With `agentWork` Grouped, the transcript carries `grouped-work` items
 //!   (`transcript/grouped_work.rs`) where it carried `completed-work`:
 //!   `{"kind":"grouped-work","id":"grouped:<first turn id>","label","stats"?,"filesCard","files","filesLabel","simpleFilesLabel","expandable","work","turns","readImages"?}`.

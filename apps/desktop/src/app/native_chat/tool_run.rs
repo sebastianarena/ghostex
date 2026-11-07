@@ -82,12 +82,23 @@ impl NativeChatView {
         if visible.is_empty() {
             return Vec::new();
         }
-        // An opened quiet line lists each call as one of its steps (quiet_work.rs).
+        // An opened quiet line lists each call as one of its steps (quiet_work.rs), one column with
+        // no gap between them, as the mockup and the phone draw them; as separate parts of the
+        // message they would sit the message's part gap apart.
         if self.quiet_steps {
-            return visible
+            let steps: Vec<AnyElement> = visible
                 .iter()
                 .map(|index| self.quiet_step_row(&id, *index, &tools[*index], p, cx))
                 .collect();
+            return vec![
+                div()
+                    .flex()
+                    .flex_col()
+                    .w_full()
+                    .min_w_0()
+                    .children(steps)
+                    .into_any_element(),
+            ];
         }
         // Agent work Quiet lines or Grouped: the run is one live quiet line in every view, open in
         // Detailed (quiet_work.rs).

@@ -266,7 +266,11 @@ fn tool_segments(message: &Value, folds: &SearchFolds, in_work_fold: bool, out: 
                 || (tools[*index]["exchange"] != true && tools[*index]["sentMessage"] != true)
         })
         .collect();
-    let shown: Vec<usize> = if (folds.simple || folds.quiet) && !show_all {
+    // An opened quiet line draws every call as one of its steps at once (the desktop's
+    // `quiet_step_row`, the phone's `QuietStepRow`): no `tools:` fold stands between them.
+    let shown: Vec<usize> = if folds.quiet && in_work_fold {
+        visible
+    } else if (folds.simple || folds.quiet) && !show_all {
         let awaiting = tools.iter().any(|tool| tool["awaitingApproval"] == true);
         if folds.open(
             &format!("tools:{id}"),
