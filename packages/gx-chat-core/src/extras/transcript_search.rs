@@ -124,6 +124,23 @@ pub fn visible_segments(item: &Value, folds: &SearchFolds) -> Vec<Segment> {
                 message_segments(&item["final"], folds, false, &mut out);
             }
         }
+        // Agent work Grouped: one fold over every merged turn's work, then each turn's tail.
+        Some("grouped-work") => {
+            let id = str_of(item, "id");
+            if folds.open(&format!("work:{id}"), folds.work_open) {
+                for message in array(item, "work") {
+                    message_segments(message, folds, true, &mut out);
+                }
+            }
+            for turn in array(item, "turns") {
+                for message in array(turn, "artifacts") {
+                    message_segments(message, folds, false, &mut out);
+                }
+                if turn["final"].is_object() {
+                    message_segments(&turn["final"], folds, false, &mut out);
+                }
+            }
+        }
         _ => message_segments(&item["message"], folds, false, &mut out),
     }
     out.retain(|segment| !segment.text.is_empty());

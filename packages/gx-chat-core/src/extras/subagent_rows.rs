@@ -63,6 +63,7 @@ fn scope<'a>(
         backfilled: &view.backfilled,
         question_forms: std::cell::OnceCell::new(),
         tool_cards: view.effective_tool_cards(),
+        grouped_work: view.grouped_work(),
         picture_digests: &view.picture_digests,
         seen_pictures: std::cell::OnceCell::new(),
     }

@@ -72,6 +72,8 @@ struct SettledKey {
     working_directory: Option<String>,
     session_directory_revision: u64,
     tool_cards: bool,
+    /// Agent work is Grouped: the chunks' finished turns are folded into `grouped-work` rows.
+    grouped_work: bool,
     /// A picture an agent read turned out to be one the user showed (`read_images.rs`).
     picture_digests_revision: u64,
 }
@@ -426,9 +428,17 @@ fn projection_ids(projection: &TranscriptProjection) -> impl Iterator<Item = &st
 fn deferred_keys(items: &[TranscriptItem]) -> Vec<&str> {
     let mut keys: Vec<&str> = Vec::new();
     for item in items {
-        if let TranscriptItem::CompletedWork { id, deferred, .. } = item {
-            let owner = deferred.as_ref().and_then(|work| work["startId"].as_str());
-            for key in std::iter::once(id.as_str()).chain(owner) {
+        let folds: Vec<(&str, Option<&serde_json::Value>)> = match item {
+            TranscriptItem::CompletedWork { id, deferred, .. } => vec![(id, deferred.as_ref())],
+            TranscriptItem::GroupedWork { turns, .. } => turns
+                .iter()
+                .map(|turn| (turn.id.as_str(), turn.deferred.as_ref()))
+                .collect(),
+            _ => Vec::new(),
+        };
+        for (id, deferred) in folds {
+            let owner = deferred.and_then(|work| work["startId"].as_str());
+            for key in std::iter::once(id).chain(owner) {
                 if !keys.contains(&key) {
                     keys.push(key);
                 }
@@ -465,6 +475,7 @@ impl SettledPrefix {
             working_directory: view.working_directory.clone(),
             session_directory_revision: view.session_directory_revision,
             tool_cards: view.effective_tool_cards(),
+            grouped_work: view.grouped_work(),
             picture_digests_revision: view.picture_digests_revision,
         }
     }
@@ -1196,6 +1207,7 @@ pub fn scope<'a>(state: &'a ChatState, view: &'a TranscriptViewState) -> Project
         backfilled: &view.backfilled,
         question_forms: std::cell::OnceCell::from(scans.marked_forms()),
         tool_cards: view.effective_tool_cards(),
+        grouped_work: view.grouped_work(),
         picture_digests: &view.picture_digests,
         seen_pictures: std::cell::OnceCell::new(),
     }

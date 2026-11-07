@@ -19,6 +19,14 @@
 //!   which is today's chat; otherwise it is
 //!   `{"messageLayout":"default|left","userStyle":"default|band|rule|names","agentWork":"default|quiet|grouped","statusInTranscript":bool}`,
 //!   and `messageLayout` is the effective layout (Left whenever `userStyle` is not Default).
+//! - With `agentWork` Grouped, the transcript carries `grouped-work` items
+//!   (`transcript/grouped_work.rs`) where it carried `completed-work`:
+//!   `{"kind":"grouped-work","id":"grouped:<first turn id>","label","stats"?,"filesCard","files","filesLabel","simpleFilesLabel","expandable","work","turns","readImages"?}`.
+//!   The counts, files and work are the merged turns' added up; each `turns` entry is one turn's
+//!   tail `{"id","deferred"?,"questions","sentMessages"?,"workflows"?,"artifacts","final"?}`, in
+//!   turn order, shaped like the same-named `completed-work` fields. Opening the line sends one
+//!   `loadWork` per turn that has `deferred` (its load state is `deferredWork[<turn id>]`); Find
+//!   reads the line's fold as `work:<id>`.
 //! - No callbacks into the core, no generics and no lifetimes at the public boundary, so the same
 //!   API works over UniFFI.
 //!
@@ -51,10 +59,10 @@ pub use crate::dispatch::{owner, Family};
 pub use crate::document::{
     assemble, frame_parts, AccountStatus, AsyncQuestions, ChatPill, ComposerActions,
     ComposerChrome, ComposerOverflow, DeferredWorkRow, Document, Draft, EmptyState, Frame,
-    FrameParts, HostAction, IncomingDraft, Interaction, ItemsSplice, LoadingNotice, MinimapMarker,
-    NewSessionWelcome, Note, ProjectedMessage, QuestionCard, QuestionControls, QuestionDraft,
-    Queue, QueueCapabilities, QueuedPrompt, RowDetails, TerminalTail, TerminalTailNotice,
-    TranscriptItem, ViewState, WorkingCard, WorkingStrip,
+    FrameParts, GroupedTurn, HostAction, IncomingDraft, Interaction, ItemsSplice, LoadingNotice,
+    MinimapMarker, NewSessionWelcome, Note, ProjectedMessage, QuestionCard, QuestionControls,
+    QuestionDraft, Queue, QueueCapabilities, QueuedPrompt, RowDetails, TerminalTail,
+    TerminalTailNotice, TranscriptItem, ViewState, WorkTally, WorkingCard, WorkingStrip,
 };
 pub use crate::effect::{Effect, HostRequest, OpenTarget, RequestKind, StorageWrite};
 pub use crate::event::{

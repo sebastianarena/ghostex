@@ -224,6 +224,12 @@ pub fn advance(state: &mut ChatState, context: &ChatContext) -> bool {
 fn without_worked_time(items: &mut [TranscriptItem], turn_id: &str) {
     let fold = items.iter_mut().rev().find_map(|item| match item {
         TranscriptItem::CompletedWork { id, label, .. } if id == turn_id => Some(label),
+        // Agent work Grouped: the line that merged the turn says it for the whole reply.
+        TranscriptItem::GroupedWork { turns, label, .. }
+            if turns.iter().any(|turn| turn.id == turn_id) =>
+        {
+            Some(label)
+        }
         _ => None,
     });
     if let Some(label) = fold {

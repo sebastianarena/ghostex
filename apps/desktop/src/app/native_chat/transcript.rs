@@ -201,6 +201,8 @@ impl NativeChatView {
                 row.into_any_element()
             }
             TranscriptItem::CompletedWork { .. } => self.completed_work_row(item, &p, window, cx),
+            // The Grouped line's renderer is not in yet: the row draws nothing until it is.
+            TranscriptItem::GroupedWork { .. } => div().into_any_element(),
             TranscriptItem::Message { message } => {
                 self.message_item_row(message, items.get(index + 1), &p, window, cx)
             }

@@ -163,7 +163,9 @@ fn rows_newest_first(items: &[TranscriptItem]) -> Vec<(usize, Option<usize>, &Va
                 }
             }
             // A finished turn's work holds no call an approval still waits on.
-            TranscriptItem::CompletedWork { .. } | TranscriptItem::Unknown(_) => {}
+            TranscriptItem::CompletedWork { .. }
+            | TranscriptItem::GroupedWork { .. }
+            | TranscriptItem::Unknown(_) => {}
         }
     }
     rows

@@ -105,10 +105,72 @@ pub enum TranscriptItem {
         /// (`transcript/read_images.rs`).
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         read_images: Vec<Value>,
+        /// What a Grouped line adds up when it folds this turn in (`transcript/grouped_work.rs`).
+        /// Never on the wire.
+        #[serde(skip)]
+        tally: WorkTally,
+    },
+    /// Agent work set to Grouped: the finished turns the agent ran for one message of yours, folded
+    /// into one line (`transcript/grouped_work.rs`). The fields are those of `completed-work`
+    /// added up over every merged turn; what each turn keeps out of the fold is in `turns`.
+    #[serde(rename = "grouped-work", rename_all = "camelCase")]
+    GroupedWork {
+        /// `grouped:` plus the first merged turn's id.
+        id: String,
+        /// "Worked for 1m 16s": the merged turns' times added up.
+        label: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        stats: Vec<Value>,
+        #[serde(default)]
+        files_card: Value,
+        files: Vec<Value>,
+        files_label: String,
+        simple_files_label: String,
+        expandable: bool,
+        /// Every merged turn's folded rows, in turn order.
+        work: Vec<ProjectedMessage>,
+        /// Each merged turn's tail, in turn order, drawn after the line.
+        turns: Vec<GroupedTurn>,
+        /// The pictures the merged work opened from disk, each once, drawn as a strip under the
+        /// line while it is closed.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        read_images: Vec<Value>,
     },
     /// A kind this build does not know, kept verbatim so one new row cannot drop the list.
     #[serde(untagged)]
     Unknown(Value),
+}
+
+/// One turn a `grouped-work` line merged: what stays out of the line, shaped like the same-named
+/// `completed-work` fields, and the turn's own id and `deferred`, which opening the line reads back
+/// (`{type: 'loadWork', id, work: deferred}`, one per turn that has it).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GroupedTurn {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deferred: Option<Value>,
+    pub questions: Vec<Value>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sent_messages: Vec<Value>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub workflows: Vec<Value>,
+    pub artifacts: Vec<ProjectedMessage>,
+    #[serde(rename = "final", default, skip_serializing_if = "Option::is_none")]
+    pub final_message: Option<ProjectedMessage>,
+}
+
+/// A finished turn's numbers, kept beside its `completed-work` row so a Grouped line can add them
+/// up without reading its labels back.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct WorkTally {
+    /// How long the turn itself ran, from its opener to its end (`presentation::turn_end`); `None`
+    /// when it has no length to show.
+    pub worked_ms: Option<i64>,
+    /// Its tool calls, as `work_summary::work_stats` counts them.
+    pub tool_calls: usize,
+    /// The paths its "N files changed" counts, the held-back ones included.
+    pub changed: Vec<String>,
 }
 
 // A host may hand the rows to another thread, so a row stays `Send + Sync`, and cloning one shares

@@ -17,7 +17,7 @@ pub use crate::document::composer::{
 };
 pub use crate::document::frame::{Frame, ItemsSplice, MinimapMarker, RowDetails};
 pub use crate::document::panels::{
-    AccountStatus, ChatPill, DeferredWorkRow, PillDot, HostAction, SavedDraftPill, TerminalTail,
+    AccountStatus, ChatPill, DeferredWorkRow, HostAction, PillDot, SavedDraftPill, TerminalTail,
     TerminalTailNotice, ViewChip, WorkingCard, WorkingStrip,
 };
 pub use crate::document::question::{
@@ -25,5 +25,5 @@ pub use crate::document::question::{
 };
 pub use crate::document::queue::{Queue, QueueCapabilities, QueuedPrompt};
 pub use crate::document::snapshot::Document;
-pub use crate::document::transcript::{ProjectedMessage, TranscriptItem};
+pub use crate::document::transcript::{GroupedTurn, ProjectedMessage, TranscriptItem, WorkTally};
 pub use crate::document::view::{EmptyState, LoadingNotice, NewSessionWelcome, ViewState};

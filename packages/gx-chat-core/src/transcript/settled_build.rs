@@ -168,6 +168,7 @@ fn build_after(
         backfilled: &view.backfilled,
         question_forms: std::cell::OnceCell::from(forms),
         tool_cards: view.effective_tool_cards(),
+        grouped_work: view.grouped_work(),
         picture_digests: &view.picture_digests,
         seen_pictures: std::cell::OnceCell::new(),
     };

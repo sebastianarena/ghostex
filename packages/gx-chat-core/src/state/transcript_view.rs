@@ -309,6 +309,12 @@ impl TranscriptViewState {
             && self.chat_look.agent_work == crate::transcript::chat_look::AgentWork::Default
     }
 
+    /// Whether Agent work is Grouped, which folds each message's finished turns into one row
+    /// (`transcript/grouped_work.rs`).
+    pub fn grouped_work(&self) -> bool {
+        self.chat_look.agent_work == crate::transcript::chat_look::AgentWork::Grouped
+    }
+
     /// Whether any row is still drawn as a plain-text placeholder, which is what keeps the 0 ms
     /// backfill timer armed.
     pub fn has_pending_backfill(&self) -> bool {

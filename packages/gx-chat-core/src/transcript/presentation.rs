@@ -8,7 +8,7 @@ use std::sync::Arc;
 use ghostex_gx_protocol::{ChatBlock, ChatMessage, ChatRole};
 use serde_json::{Map, Value};
 
-use crate::document::TranscriptItem;
+use crate::document::{TranscriptItem, WorkTally};
 use crate::state::{
     ChatContext, ChatState, ProjectedMessage, TranscriptViewState, EAGER_TAIL_ITEMS,
 };
@@ -58,7 +58,7 @@ use crate::transcript::transcript_rows::{file_rows, open_tool_detail, tool_fold,
 use crate::transcript::turns::{
     is_omp_wake_kind, partition_completed_work, worked_duration_label, RenderItem,
 };
-use crate::transcript::work_summary::{tool_spans, work_stats};
+use crate::transcript::work_summary::{counted_work_stats, tool_call_count, tool_spans};
 
 /// A message's file changes and tool calls, in the order their rows are numbered.
 pub fn message_tool_rows(message: &ChatMessage) -> (Vec<FileChange<'_>>, Vec<ToolPair<'_>>) {
@@ -584,6 +584,17 @@ fn turn_worked_label(
     worked_duration_label(turn.user.timestamp, end)
 }
 
+/// How long `turn` itself ran, which a Grouped line adds up (`grouped_work.rs`): from its opener
+/// to its end, without the OMP wake-ups after it that its own label runs on through
+/// ([`turn_worked_label`]), since the line holds their turns as well.
+fn turn_worked_ms(
+    turn: &crate::transcript::turns::CompletedWorkTurn,
+    loaded: Option<&[ChatMessage]>,
+) -> Option<i64> {
+    let (start, end) = (turn.user.timestamp?, turn_end(turn, loaded)?);
+    (end > start).then_some(end - start)
+}
+
 /// The Worked line of the newest turn a user row opened, when it has finished, timed, with no
 /// prompt after it. The turns of the OMP wake-ups after it continue its run (`turn_worked_label`).
 pub(crate) fn latest_worked_turn(items: &[RenderItem], working: bool) -> Option<(String, String)> {
@@ -648,6 +659,9 @@ pub struct ProjectionScope<'a> {
     /// Settings > Chat > Tool call cards (`chatToolCallCards`): each message's calls project as one
     /// card (`tool_card.rs`).
     pub tool_cards: bool,
+    /// Agent work is Grouped (`transcript/chat_look.rs`): the finished turns for each message of
+    /// the user's fold into one `grouped-work` row (`grouped_work.rs`).
+    pub grouped_work: bool,
     /// [`TranscriptViewState::picture_digests`]: which pictures read from disk the user already
     /// showed (`read_images.rs`).
     pub picture_digests: &'a std::collections::HashMap<String, u64>,
@@ -717,6 +731,7 @@ pub fn scope<'a>(state: &'a ChatState, view: &'a TranscriptViewState) -> Project
         backfilled: &view.backfilled,
         question_forms: std::cell::OnceCell::new(),
         tool_cards: view.effective_tool_cards(),
+        grouped_work: view.grouped_work(),
         picture_digests: &view.picture_digests,
         seen_pictures: std::cell::OnceCell::new(),
     }
@@ -1001,7 +1016,9 @@ pub(crate) fn message_id(item: &TranscriptItem) -> String {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string(),
-        TranscriptItem::Summary { id, .. } | TranscriptItem::CompletedWork { id, .. } => id.clone(),
+        TranscriptItem::Summary { id, .. }
+        | TranscriptItem::CompletedWork { id, .. }
+        | TranscriptItem::GroupedWork { id, .. } => id.clone(),
         TranscriptItem::Unknown(_) => String::new(),
     }
 }
@@ -1134,6 +1151,12 @@ pub(crate) fn build_items(
 ) -> Vec<TranscriptItem> {
     let mut items = turn_items(builder, projection, running_thinking, first, latest_reply);
     crate::transcript::read_images::bubble_read_images(&mut items, builder.scope.seen_pictures());
+    // A settled chunk starts at a prompt the user sent (`settled::opens_turn`), whose row comes
+    // before its turn's fold, and a running turn's rows fold nothing, so no run of finished turns
+    // spans two chunks: grouping each chunk's rows alone groups the whole list.
+    if builder.scope.grouped_work && !builder.scope.summary {
+        items = crate::transcript::grouped_work::group_work(items);
+    }
     items
 }
 
@@ -1276,25 +1299,24 @@ fn turn_items(
                     }
                 }
                 let changed_files = changed.len();
-                let stats = if turn.user.deferred_work.is_some() && work.is_empty() {
+                let tool_calls = if turn.user.deferred_work.is_some() && work.is_empty() {
                     // The rows are still on the server: only the files are known until it opens.
-                    work_stats(&[], changed_files)
+                    0
                 } else {
                     let rows: Vec<&ChatMessage> =
                         work.iter().chain(turn.final_message.iter()).collect();
-                    work_stats(&rows, changed_files)
+                    tool_call_count(&rows)
                 };
+                let stats = counted_work_stats(tool_calls, changed_files);
+                let loaded =
+                    section.map(|rows| crate::transcript::transcript::section_part(turn, rows));
                 let deferred_value = turn
                     .section
                     .as_ref()
                     .and_then(|deferred| serde_json::to_value(deferred).ok());
                 TranscriptItem::CompletedWork {
                     id: turn.user.id.clone(),
-                    label: turn_worked_label(
-                        turn,
-                        section.map(|rows| crate::transcript::transcript::section_part(turn, rows)),
-                        &projection.items[index + 1..],
-                    ),
+                    label: turn_worked_label(turn, loaded, &projection.items[index + 1..]),
                     stats,
                     files_card: crate::transcript::file_change_rows::file_change_card(&files),
                     files,
@@ -1362,6 +1384,11 @@ fn turn_items(
                         .as_ref()
                         .map(|message| builder.message_or_placeholder(message, eager, Draw::Row)),
                     read_images: Vec::new(),
+                    tally: WorkTally {
+                        worked_ms: turn_worked_ms(turn, loaded),
+                        tool_calls,
+                        changed,
+                    },
                 }
             })
             .collect()
@@ -1401,6 +1428,12 @@ pub(crate) fn drop_hidden_rows(items: &mut Vec<TranscriptItem>, hidden: &[String
             } => {
                 work.retain(shown);
                 artifacts.retain(shown);
+            }
+            TranscriptItem::GroupedWork { work, turns, .. } => {
+                work.retain(shown);
+                for turn in turns {
+                    turn.artifacts.retain(shown);
+                }
             }
             _ => {}
         }
