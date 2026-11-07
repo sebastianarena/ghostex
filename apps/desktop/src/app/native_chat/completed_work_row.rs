@@ -11,7 +11,7 @@
 use super::cards::{SINGLE_LINE_CARD, card_hover_fill};
 use super::disclosure_body::{DisclosureRail, disclosure_body};
 use super::disclosure_motion::{FoldFrame, FoldMotionKind, motion_clip};
-use super::quiet_work::{QUIET_TEXT_GAP, QuietLine, QuietMark, QuietSegment};
+use super::quiet_work::{QUIET_TEXT_GAP, QuietLine, QuietSegment, finished_mark};
 use super::transcript::text;
 use super::{appearance::ChatAppearance, state::NativeChatView};
 use crate::app::native_chat::cursor::ChatCursor as _;
@@ -269,6 +269,7 @@ impl NativeChatView {
             files,
             expandable,
             deferred,
+            work,
             ..
         } = item
         else {
@@ -289,7 +290,7 @@ impl NativeChatView {
             QuietLine {
                 key: id.to_string(),
                 segments: quiet_segments(label, stats, !edit_line, p),
-                mark: QuietMark::Done,
+                mark: finished_mark(work.iter().map(|message| &**message)),
                 expanded,
                 expandable: *expandable,
                 actions,

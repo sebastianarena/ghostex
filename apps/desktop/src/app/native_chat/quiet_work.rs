@@ -5,6 +5,7 @@
 //! per call. At Default nothing here runs.
 
 use super::completed_work_row::{WorkTail, quiet_segments, spaced_tail};
+use super::file_actions::FileMenuExt as _;
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
 use crate::app::helpers::ThrottledAnimationExt as _;
 use crate::app::native_chat::cursor::ChatCursor as _;
@@ -48,6 +49,8 @@ pub(super) enum QuietMark {
     Done,
     /// A call still runs: the turning loader instead of the check.
     Running,
+    /// A call failed: the tool rows' cross in the error tone instead of the check.
+    Failed,
 }
 
 /// One piece of a line's text, in its own colour when it has one.
@@ -119,6 +122,31 @@ fn check(p: &ChatAppearance) -> AnyElement {
         .into_any_element()
 }
 
+/// The cross of a line or step whose call failed, as a failed tool row marks it.
+fn cross(p: &ChatAppearance) -> AnyElement {
+    svg()
+        .path("titlebar/x.svg")
+        .size(px(12.0 * p.scale))
+        .flex_shrink_0()
+        .text_color(p.error())
+        .into_any_element()
+}
+
+/// The mark for calls that are all answered: the cross when one of `messages`' calls failed,
+/// else the check.
+pub(super) fn finished_mark<'a>(messages: impl IntoIterator<Item = &'a Value>) -> QuietMark {
+    let failed = messages.into_iter().any(|message| {
+        message["tools"]
+            .as_array()
+            .is_some_and(|tools| tools.iter().any(|tool| tool["failed"] == true))
+    });
+    if failed {
+        QuietMark::Failed
+    } else {
+        QuietMark::Done
+    }
+}
+
 /// The turning loader of a line or step whose call still runs.
 fn loader(key: &str, p: &ChatAppearance, reduce_motion: bool) -> AnyElement {
     let glyph = svg()
@@ -153,6 +181,7 @@ impl NativeChatView {
         let mark = match line.mark {
             QuietMark::Done => check(p),
             QuietMark::Running => loader(&line.key, p, cx.reduce_motion()),
+            QuietMark::Failed => cross(p),
         };
         let spoken = line
             .segments
@@ -332,12 +361,7 @@ impl NativeChatView {
         let motion = self.disclosure_frame(&key, expanded && has_detail, cx);
         let status = text(tool, "status");
         let mark = match status.as_str() {
-            "failed" => svg()
-                .path("titlebar/x.svg")
-                .size(px(12.0 * s))
-                .flex_shrink_0()
-                .text_color(p.error())
-                .into_any_element(),
+            "failed" => cross(p),
             "stopped" => svg()
                 .path("titlebar/circle-dashed.svg")
                 .size(px(12.0 * s))
@@ -347,26 +371,14 @@ impl NativeChatView {
             "running" => loader(&key, p, cx.reduce_motion()),
             _ => check(p),
         };
-        let name = match text(tool, "name") {
-            name if name.is_empty() => text(tool, "label"),
-            name => name,
-        };
-        let preview = match text(tool, "preview") {
-            preview if preview.is_empty() => match text(&tool["subagent"], "name") {
-                agent if agent.is_empty() => text(tool, "description"),
-                agent => agent,
-            },
-            preview => preview,
-        };
-        let failure = text(tool, "failure");
-        let preview = match (preview.is_empty(), failure.is_empty()) {
-            (_, true) => preview,
-            (true, false) => failure,
-            (false, false) => format!("{preview} \u{b7} {failure}"),
-        };
+        // The same text Find searches (gx-chat-core `quiet_step_text`).
+        let (name, preview) =
+            ghostex_gx_chat_core::extras::transcript_search::quiet_step_text(tool);
         let toggle_key = key.clone();
+        let file_path = text(tool, "filePath");
         let mut trigger = div()
             .id(SharedString::from(format!("{key}:quiet-step")))
+            .file_menu((!file_path.is_empty()).then_some(file_path), cx)
             .role(gpui::Role::Button)
             .aria_label(format!("Tool {name}: {preview}"))
             .aria_expanded(expanded)
@@ -474,9 +486,16 @@ impl NativeChatView {
                 sections.push((&turn.id, section));
             }
         }
+        // The read is keyed by the section's prompt (`startId`), which every turn it holds looks
+        // its rows up by (gx-chat-core `presentation.rs`), so a run that starts on a wake-up still
+        // fills each of its turns.
+        let sections: Vec<(&str, &Value)> = sections
+            .into_iter()
+            .map(|(turn, work)| (work["startId"].as_str().unwrap_or(turn), work))
+            .collect();
         let actions = sections
             .iter()
-            .map(|(turn, work)| json!({"type":"loadWork","id":turn,"work":work}))
+            .map(|(owner, work)| json!({"type":"loadWork","id":owner,"work":work}))
             .collect();
         let mut segments = quiet_segments(label, stats, false, p);
         if stats.iter().any(|stat| stat["kind"] == "files") {
@@ -495,7 +514,7 @@ impl NativeChatView {
             QuietLine {
                 key: key.clone(),
                 segments,
-                mark: QuietMark::Done,
+                mark: finished_mark(work.iter().map(|message| &**message)),
                 expanded,
                 expandable: *expandable,
                 actions,
@@ -507,8 +526,8 @@ impl NativeChatView {
         self.hide_file_changes = true;
         if expanded {
             let mut steps: Vec<AnyElement> = Vec::new();
-            for (turn, section) in &sections {
-                if let Some(notice) = self.deferred_work_notice_for(turn, Some(section), p, cx) {
+            for (owner, section) in &sections {
+                if let Some(notice) = self.deferred_work_notice_for(owner, Some(section), p, cx) {
                     steps.push(notice);
                 }
             }

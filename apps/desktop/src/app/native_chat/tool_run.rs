@@ -7,7 +7,7 @@
 use super::disclosure_body::{DisclosureRail, disclosure_body};
 use super::disclosure_motion::motion_clip_trailing;
 use super::file_actions::FileMenuExt as _;
-use super::quiet_work::{QuietLine, QuietMark};
+use super::quiet_work::{QuietLine, QuietMark, finished_mark};
 use super::{
     appearance::ChatAppearance, fonts::CHAT_MONO, state::NativeChatView, transcript::text,
 };
@@ -116,7 +116,7 @@ impl NativeChatView {
                         mark: if running {
                             QuietMark::Running
                         } else {
-                            QuietMark::Done
+                            finished_mark([message])
                         },
                         expanded,
                         expandable: true,

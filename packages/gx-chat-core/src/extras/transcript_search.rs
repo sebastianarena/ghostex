@@ -40,6 +40,10 @@ pub struct SearchFolds {
     pub simple: bool,
     /// Whether turns and tool calls open by default (verbose, or not summarized).
     pub work_open: bool,
+    /// Agent work is Quiet lines or Grouped (`transcript/chat_look.rs`): a tool-only run folds
+    /// behind its quiet line in every view, open by default in Detailed, and an opened work fold
+    /// lists its calls as quiet steps. The core sets it from its own chat look, not the renderer.
+    pub quiet: bool,
 }
 
 impl SearchFolds {
@@ -60,6 +64,7 @@ impl SearchFolds {
             collapsed: keys("collapsed"),
             simple: action.get("simple") == Some(&Value::Bool(true)),
             work_open: action.get("workOpen") == Some(&Value::Bool(true)),
+            quiet: false,
         }
     }
 
@@ -261,9 +266,12 @@ fn tool_segments(message: &Value, folds: &SearchFolds, in_work_fold: bool, out: 
                 || (tools[*index]["exchange"] != true && tools[*index]["sentMessage"] != true)
         })
         .collect();
-    let shown: Vec<usize> = if folds.simple && !show_all {
+    let shown: Vec<usize> = if (folds.simple || folds.quiet) && !show_all {
         let awaiting = tools.iter().any(|tool| tool["awaitingApproval"] == true);
-        if folds.open(&format!("tools:{id}"), awaiting) {
+        if folds.open(
+            &format!("tools:{id}"),
+            awaiting || (folds.quiet && folds.work_open),
+        ) {
             visible
         } else {
             Vec::new()
@@ -280,6 +288,23 @@ fn tool_segments(message: &Value, folds: &SearchFolds, in_work_fold: bool, out: 
                 .collect()
         }
     };
+    // An opened quiet line's steps: the call's name, then its argument whatever the view, as the
+    // desktop's `quiet_step_row` (quiet_work.rs) and the phone draw them.
+    if folds.quiet && in_work_fold {
+        for index in shown {
+            let tool = &tools[index];
+            let (name, preview) = quiet_step_text(tool);
+            out.push(Segment {
+                text: name,
+                label: Some(format!("tool:{id}:{index}")),
+            });
+            out.push(Segment {
+                text: preview,
+                label: Some(format!("tool-preview:{id}:{index}")),
+            });
+        }
+        return;
+    }
     for index in shown {
         let tool = &tools[index];
         let described = !str_of(tool, "description").is_empty();
@@ -306,6 +331,23 @@ fn tool_segments(message: &Value, folds: &SearchFolds, in_work_fold: bool, out: 
             label: Some(format!("tool-preview:{id}:{index}")),
         });
     }
+}
+
+/// What a quiet step says (Agent work Quiet lines or Grouped): the tool's name (its label when it
+/// has none), then its argument, else the subagent it ran or its description, then what failed.
+pub fn quiet_step_text(tool: &Value) -> (String, String) {
+    let name = match str_of(tool, "name") {
+        name if name.is_empty() => str_of(tool, "label"),
+        name => name,
+    };
+    let argument = match str_of(tool, "preview") {
+        preview if preview.is_empty() => match str_of(&tool["subagent"], "name") {
+            agent if agent.is_empty() => str_of(tool, "description"),
+            agent => agent,
+        },
+        preview => preview,
+    };
+    (name, tool_preview_line(&argument, &str_of(tool, "failure")))
 }
 
 /// A tool row's preview line: the argument, then what failed when it failed.
