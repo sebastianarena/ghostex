@@ -77,15 +77,23 @@ impl NativeChatView {
     /// width percentage), held while a panel slides (render.rs), ending with the row gap.
     pub(super) fn transcript_row_column(&self, p: &ChatAppearance) -> gpui::Div {
         let s = p.scale;
-        div()
+        let column = div()
             .w_full()
             .max_w(px(768.0 * s))
             .px(px(16.0 * s))
-            .pb(px(super::transcript_layout::LAYOUT.row_gap * s))
+            .pb(px(super::transcript_layout::LAYOUT.row_gap * s));
+        self.with_transcript_width(column, p)
+    }
+
+    /// The transcript column's width on `column`: the Transcript width percentage, and while a
+    /// panel slides the text width the rows hold (render.rs). The rows, the lone ↓ pill
+    /// (working_card.rs) and, with Chat box matches transcript width, the chat box (composer.rs)
+    /// all take it, so they line up.
+    pub(super) fn with_transcript_width(&self, column: gpui::Div, p: &ChatAppearance) -> gpui::Div {
+        column
             .when_some(p.transcript_width, |this, width| {
                 this.max_w(relative(1.0)).w(relative(width))
             })
-            // While a panel slides the row keeps its text width (render.rs).
             .when_some(self.held_text_width, |this, width| {
                 this.flex_shrink_0().w(px(width)).max_w(px(width))
             })

@@ -540,7 +540,9 @@ fn settings_moved(
                 != state.core.chat_text_strength
         })
         || settings.chat_look.as_ref().is_some_and(|look| {
-            state.transcript_view.chat_look.with_settings(look) != state.transcript_view.chat_look
+            !state.transcript_view.chat_look_from_host
+                || state.transcript_view.chat_look.with_settings(look)
+                    != state.transcript_view.chat_look
         }))
     .then(|| Event::SettingsChanged(Box::new(settings.clone())))
 }

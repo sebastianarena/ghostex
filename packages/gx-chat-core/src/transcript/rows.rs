@@ -140,8 +140,10 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
         None
     } else {
         projection.worked_turn.map(|(id, label)| {
-            without_worked_time(&mut items, &id);
-            label
+            // A grouped line's time spans the whole reply, so the card says that one.
+            without_worked_time(&mut items, &id)
+                .filter(|group| group != "Worked")
+                .unwrap_or(label)
         })
     };
     view.items = std::sync::Arc::new(TranscriptItems::with_settled(&settled_rows, items));
@@ -217,22 +219,23 @@ pub fn advance(state: &mut ChatState, context: &ChatContext) -> bool {
 
 /// The finished turn whose "Worked for 2m 13s" the working card shows drops it from its own fold, which
 /// reads "Previous turn" beside its counts instead, so the time is on screen once. The OMP wake-ups'
-/// turns after it (`presentation::latest_worked_turn`) keep their own times.
+/// turns after it (`presentation::latest_worked_turn`) keep their own times. Under Agent work
+/// Grouped the turn's line is the whole reply's, so this returns that line's own label, which the
+/// card shows in the turn's place.
 ///
 /// CDXC:SessionChat 2026-10-18 DECISION:
 /// User (Q257, the card when the turn ends: "worked line"): "then you need to not show the same text up top in the collapsed section that mentions how many tool calls were done in this case if you get me (because otherwise we'd have "worked 2m 13s" twice on screen". While the working card shows a turn's Worked line, that turn's fold drops its time. Then (2026-10-18), seeing the fold left with only its chevron and counts: "Make this say 'Previous turn' on the left side after the chevron". Supersedes the 2026-10-17 fold that showed only its counts.
-fn without_worked_time(items: &mut [TranscriptItem], turn_id: &str) {
-    let fold = items.iter_mut().rev().find_map(|item| match item {
-        TranscriptItem::CompletedWork { id, label, .. } if id == turn_id => Some(label),
+fn without_worked_time(items: &mut [TranscriptItem], turn_id: &str) -> Option<String> {
+    let (label, grouped) = items.iter_mut().rev().find_map(|item| match item {
+        TranscriptItem::CompletedWork { id, label, .. } if id == turn_id => Some((label, false)),
         // Agent work Grouped: the line that merged the turn says it for the whole reply.
         TranscriptItem::GroupedWork { turns, label, .. }
             if turns.iter().any(|turn| turn.id == turn_id) =>
         {
-            Some(label)
+            Some((label, true))
         }
         _ => None,
-    });
-    if let Some(label) = fold {
-        *label = "Previous turn".to_string();
-    }
+    })?;
+    let previous = std::mem::replace(label, "Previous turn".to_string());
+    grouped.then_some(previous)
 }

@@ -27,8 +27,9 @@
 //!   The counts, files and work are the merged turns' added up; each `turns` entry is one turn's
 //!   tail `{"id","deferred"?,"questions","sentMessages"?,"workflows"?,"artifacts","final"?}`, in
 //!   turn order, shaped like the same-named `completed-work` fields. Opening the line sends one
-//!   `loadWork` per turn that has `deferred` (its load state is `deferredWork[<turn id>]`); Find
-//!   reads the line's fold as `work:<id>`.
+//!   `loadWork` per distinct `deferred` section, keyed by the section's `startId` (several
+//!   wake-up turns can share their prompt's section; its load state is `deferredWork[<startId>]`,
+//!   which every turn it holds reads); Find reads the line's fold as `work:<id>`.
 //! - No callbacks into the core, no generics and no lifetimes at the public boundary, so the same
 //!   API works over UniFFI.
 //!

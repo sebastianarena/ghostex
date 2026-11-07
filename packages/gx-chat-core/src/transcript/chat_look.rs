@@ -6,16 +6,16 @@
 //! Message layout (`chatMessageLayout`). User: "align all chats to the left like Slack or Claude Code". Left aligned starts every message at the same left edge. It is opt-in: maddada's rule as Sebastian relayed it, "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
 //!
 //! CDXC:SessionChat 2026-11-07 DECISION:
-//! Your messages (`chatUserMessageStyle`). User: "what needs to shine is the text". Band, Left rule and Names replace the bubble, and any of them also left-aligns the chat whatever Message layout says ([`ChatLook::effective_layout`]). Default keeps the bubble on the right: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
+//! Your messages (`chatUserMessageStyle`). User (paraphrased): tell at a glance what you said and what the agent said, the way Claude Code does, but without its `›` and `●` markers, which would end up in copied text. Band, Left rule and Names replace the bubble, and any of them also left-aligns the chat whatever Message layout says ([`ChatLook::effective_layout`]). Default keeps the bubble on the right: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
 //!
 //! CDXC:SessionChat 2026-11-07 DECISION:
-//! Agent work (`chatAgentWorkStyle`). User: the agent's work should be "way less prominent, the opposite of a panel, with an icon and a checkmark". Quiet lines and Grouped turn the tool call cards off in the projection whatever Tool call cards says (`TranscriptViewState::effective_tool_cards`). Approvals, questions, sent-message cards, Workflow cards, artifacts and the read-image strip never fold into a quiet or grouped line. Default keeps today's Worked for card: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
+//! Agent work (`chatAgentWorkStyle`). User: the agent's work should be "way less prominent, the opposite of a panel, with an icon and a checkmark", so that the agent's own text stands out: "what needs to shine is the text". Quiet lines and Grouped turn the tool call cards off in the projection whatever Tool call cards says (`TranscriptViewState::effective_tool_cards`). Approvals, questions, sent-message cards, Workflow cards, artifacts and the read-image strip never fold into a quiet or grouped line. Default keeps today's Worked for card: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
 //!
 //! CDXC:SessionChat 2026-11-07 DECISION:
 //! Status line in the chat (`chatStatusInTranscript`). User: "the line that has the status that shows at the top of the input bar, that I really enjoyed in Claude to be part of the messages". When it is on, a finished turn's fold keeps its own "Worked for" time and the card above the chat box never shows the worked line (`transcript::rows`, `extras::working_card`). Off by default: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
 //!
 //! CDXC:SessionChat 2026-11-07 SEE-ALSO:
-//! packages/settings-catalog/src/modules.rs (the rows), server/src/session_chat_read.rs (`chatLook` on every read), apps/desktop/src/app/gx_chat/boot.rs and world.rs (the desktop host's read and live updates), apps/desktop/src/app/native_chat/ (desktop and web) and apps/mobile/app/src/chat/ (phone) draw the document's `chatLook` and must match.
+//! packages/settings-catalog/src/general/chat.rs (the rows), server/src/session_chat_read.rs (`chatLook` on every read), apps/desktop/src/app/gx_chat/boot.rs and world.rs (the desktop host's read and live updates), apps/desktop/src/app/native_chat/ (desktop and web) and apps/mobile/app/src/chat/ (phone) draw the document's `chatLook` and must match.
 
 use serde::{Deserialize, Serialize};
 
@@ -169,9 +169,26 @@ pub fn chat_speaker(
     Some(ChatSpeaker { name, icon })
 }
 
+/// Adopts the look the host sent with its chat settings. From then on the chat read's `chatLook`
+/// is ignored ([`apply_from_read`]).
+pub fn apply_from_host(view: &mut crate::state::TranscriptViewState, settings: &ChatLookSettings) {
+    view.chat_look_from_host = true;
+    apply(view, settings);
+}
+
+/// Adopts the chat read's `chatLook` (gxserver's settings), unless the host has sent its own look.
+///
+/// CDXC:SessionChat 2026-11-07 WHY:
+/// The desktop's own setting wins over the read's: a cached snapshot or a remote gxserver's read carries a look that is stale or another computer's, and applying it flipped the chat (and threw its projection away) until the next settings pass. The phone and a web page whose settings have not arrived send no look, so the read still sets it there.
+pub fn apply_from_read(view: &mut crate::state::TranscriptViewState, settings: &ChatLookSettings) {
+    if !view.chat_look_from_host {
+        apply(view, settings);
+    }
+}
+
 /// Adopts what `settings` names, throwing the cached projections away when the look moved, the
 /// same way [`crate::transcript::tool_card::set_enabled`] does: every row's model depends on it.
-pub fn apply(view: &mut crate::state::TranscriptViewState, settings: &ChatLookSettings) {
+fn apply(view: &mut crate::state::TranscriptViewState, settings: &ChatLookSettings) {
     let next = view.chat_look.with_settings(settings);
     if next != view.chat_look {
         view.chat_look = next;

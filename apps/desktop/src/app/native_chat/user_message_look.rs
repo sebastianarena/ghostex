@@ -30,9 +30,13 @@ impl ChatAppearance {
 }
 
 impl NativeChatView {
-    /// CDXC:SessionChat 2026-11-07 DECISION:
-    /// User: "align all chats to the left like Slack or Claude Code", and of your own messages: "what needs to shine is the text". Left aligned keeps the bubble and moves it to the agent's left edge; Band draws your message across the column on a fill one step off the bubble's, Left rule as brighter text after a 3px bar in the link colour, and Names opens it with an avatar, "You" and the time, the text 26px in, while the agent's reply opens with its own name and logo. Each style applies to every row you wrote (sent, queued, waiting or not sent); the delivery and queued icons sit at the message's right end and the hover actions under it on the left. Default keeps the right-aligned bubble: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
-    /// SEE-ALSO: packages/gx-chat-core/src/transcript/chat_look.rs (the settings and the implied Left), apps/mobile/app/src/chat/ (the phone draws the same looks).
+    /// Your messages and Message layout on your rows. Left aligned keeps the bubble and moves it to the agent's left edge; Band draws your message across the column on a fill one step off the bubble's, Left rule as brighter text after a bar in the link colour, and Names opens it with an avatar, "You" and the time, the text indented, while the agent's reply opens with its own name and logo. Each style applies to every row you wrote (sent, queued, waiting or not sent); the delivery and queued icons sit at the message's right end and the hover actions under it on the left.
+    ///
+    /// CDXC:SessionChat 2026-11-07 WHY:
+    /// The sizes are the builder's pick from the mockups, not the user's: the 3px Left rule bar and the 26px Names indent (the avatar's width plus its gap, so the text lines up under "You").
+    ///
+    /// CDXC:SessionChat 2026-11-07 SEE-ALSO:
+    /// packages/gx-chat-core/src/transcript/chat_look.rs (the user decisions, the settings and the implied Left), apps/mobile/app/src/chat/native/transcript/userMessageLook.tsx (the phone draws the same looks).
     pub(super) fn left_user_message(
         &mut self,
         row: gpui::Stateful<gpui::Div>,
@@ -111,7 +115,9 @@ impl NativeChatView {
         let failed_delivery = self.render_startup_delivery(message, false, p, cx);
         let thumbnails = self.user_image_thumbnails(message, p, cx);
         let actions = self.user_actions(message, p, cx);
-        let names = style == UserStyle::Names;
+        // A subagent's transcript draws no name lines, for your rows as for the agent's
+        // (transcript.rs).
+        let names = style == UserStyle::Names && !self.in_subagent;
         let indent = |element: gpui::Div| {
             if names {
                 element.pl(px(NAMES_INDENT * s))

@@ -19,13 +19,16 @@ use serde_json::Value;
 use std::{cell::Cell, rc::Rc};
 
 impl NativeChatView {
-    /// Whether the transcript ends with the status row: Status line in the chat is on and the
-    /// working card would show (the core never sends its worked phase then, so the row goes when
-    /// the turn ends and that reply's own Worked line keeps the time).
+    /// Whether the transcript ends with the status row: Status line in the chat is on, the
+    /// transcript has rows and the working card would show with a label (the core never sends its
+    /// worked phase then, so the row goes when the turn ends and that reply's own Worked line keeps
+    /// the time). The phone's `statusTailShown` asks the same.
     fn status_tail_wanted(&self, p: &ChatAppearance) -> bool {
+        let card = &self.snapshot["workingCard"];
         p.chat_look.status_in_transcript
             && !self.items.is_empty()
-            && self.snapshot["workingCard"]["visible"] == true
+            && card["visible"] == true
+            && !card["label"].is_null()
     }
 
     /// Adds or removes the status row after the transcript's last row, before the rows are drawn,
@@ -44,14 +47,18 @@ impl NativeChatView {
         if !wanted {
             self.working_card.tail_lead.set(None);
             self.working_card.tail_line.set(None);
+            self.working_card.tail_fresh.set(false);
+            self.working_card.tail_in_row.set(None);
         }
         if let Some(host) = &self.transcript_host {
             window.render_view_this_frame(host.entity_id());
         }
     }
 
-    /// CDXC:SessionChat 2026-11-07 DECISION:
-    /// Status line in the chat. User: "the line that has the status that shows at the top of the input bar, that I really enjoyed in Claude to be part of the messages". On, the capsule above the chat box is gone and, while the agent works (or a compaction runs), its line is the transcript's last row: the animated spark, the label the capsule would show (a tool's folders dimmed) and the activity's progress and time, in the quiet lines' type (12.5px on a 20px line, dim). When the turn ends the row goes and that reply's Worked line keeps its time. The pills and armed timers stay in the chat box's strip. This is an opt-in alternative to the 2026-10-18 DECISION in packages/gx-chat-core/src/extras/working_card.rs, which still describes the default: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
+    /// Status line in the chat. On, the capsule above the chat box is gone and, while the agent works (or a compaction runs), its line is the transcript's last row: the animated spark, the label the capsule would show (a tool's folders dimmed) and the activity's progress and time, in the quiet lines' type (12.5px on a 20px line, dim). When the turn ends the row goes and that reply's Worked line keeps its time. The pills and armed timers stay in the chat box's strip.
+    ///
+    /// CDXC:SessionChat 2026-11-07 SEE-ALSO:
+    /// packages/gx-chat-core/src/transcript/chat_look.rs (the user decision; an opt-in alternative to the 2026-10-18 DECISION in packages/gx-chat-core/src/extras/working_card.rs, which still describes the default), apps/mobile/app/src/chat/native/cards/WorkingCard.tsx (the phone's row).
     ///
     /// CDXC:SessionChat 2026-11-07 WHY:
     /// The row lives in the cached transcript view, so nothing in it may animate: an indicator there notifies that view, which marks the chat dirty and lays out every visible row again on each frame, the cost the default card avoids by living in the composer's stack (the 2026-10-18 WHY on `render_working_card`, the 2026-09-23 one in transcript_host.rs). The row keeps the lead's place empty and records where it was painted; the chat draws the animated spark (or an activity's loader) over that place after the transcript (`render_status_tail_lead`), so its frames are the chat's animation-only frames and the rows stay cached. A compaction's indeterminate progress track stays still in the row for the same reason.
@@ -87,8 +94,12 @@ impl NativeChatView {
             .child(header)
             .child({
                 let painted = self.working_card.tail_line.clone();
+                let fresh = self.working_card.tail_fresh.clone();
                 canvas(
-                    move |bounds, _, _| painted.set(Some(bounds)),
+                    move |bounds, _, _| {
+                        painted.set(Some(bounds));
+                        fresh.set(true);
+                    },
                     |_, _, _, _| {},
                 )
                 .absolute()
@@ -106,16 +117,26 @@ impl NativeChatView {
     /// clipped to that row inside the transcript's visible area. It is visual only: no handlers,
     /// no hit test, so every press goes to the transcript under it. Placed after the transcript so
     /// a row painted this frame is where it draws.
+    ///
+    /// CDXC:SessionChat 2026-11-07 WHY:
+    /// The lead follows the row's place in the list (`ListState::bounds_for_item`) rather than only the bounds the row recorded when it painted: with Faster rendering on, a scroll moves the list's rows without painting them again, so recorded bounds alone went stale (or, cleared on each transcript draw, made the spark vanish while scrolling). The row's paint measures where the slot and the line sit inside it; every frame places them at the row's current origin.
     pub(super) fn render_status_tail_lead(&self, p: &ChatAppearance) -> Option<AnyElement> {
         if !self.status_tail {
             return None;
         }
+        let row = self.list.item_count().checked_sub(1)?;
         let reduced_motion = crate::app::helpers::gpui_macos_reduce_motion_enabled();
         let lead = working_line_lead(&self.snapshot["workingCard"], p, reduced_motion)?;
         Some(
             PaintedAtSlot {
-                slot: self.working_card.tail_lead.clone(),
-                line: self.working_card.tail_line.clone(),
+                cells: TailCells {
+                    slot: self.working_card.tail_lead.clone(),
+                    line: self.working_card.tail_line.clone(),
+                    fresh: self.working_card.tail_fresh.clone(),
+                    in_row: self.working_card.tail_in_row.clone(),
+                },
+                list: self.list.clone(),
+                row,
                 child: lead,
                 clip: None,
             }
@@ -139,11 +160,31 @@ fn status_tail_aria_label(card: &Value) -> String {
         .join(", ")
 }
 
-/// Takes no room where it sits, and lays out and paints `child` at the place `slot` last recorded,
-/// inside that clip and the `line` it belongs to.
-struct PaintedAtSlot {
+/// Where the status row's lead slot and line sit inside the row (offsets from its origin), and
+/// the clip the slot was painted in.
+#[derive(Clone, Copy)]
+pub(super) struct TailInRow {
+    slot: Bounds<Pixels>,
+    line: Bounds<Pixels>,
+    mask: Bounds<Pixels>,
+}
+
+/// The status row's painted cells (working_card.rs `WorkingCardCells`).
+struct TailCells {
     slot: PaintedSlot,
     line: Rc<Cell<Option<Bounds<Pixels>>>>,
+    fresh: Rc<Cell<bool>>,
+    in_row: Rc<Cell<Option<TailInRow>>>,
+}
+
+/// Takes no room where it sits, and lays out and paints `child` at the place the status row's
+/// slot sits in that row, at the row's current place in `list`, inside the slot's clip and the
+/// row's line.
+struct PaintedAtSlot {
+    cells: TailCells,
+    list: gpui::ListState,
+    /// The status row's index in `list`.
+    row: usize,
     child: AnyElement,
     /// The clip the child was prepainted in, for its paint.
     clip: Option<Bounds<Pixels>>,
@@ -184,9 +225,31 @@ impl Element for PaintedAtSlot {
         window: &mut Window,
         cx: &mut App,
     ) {
-        let (Some((slot, mask)), Some(line)) = (self.slot.get(), self.line.get()) else {
+        let Some(row) = self.list.bounds_for_item(self.row) else {
             return;
         };
+        let cells = &self.cells;
+        if cells.fresh.replace(false)
+            && let (Some((slot, mask)), Some(line)) = (cells.slot.get(), cells.line.get())
+        {
+            let inside = |bounds: Bounds<Pixels>| Bounds {
+                origin: bounds.origin - row.origin,
+                size: bounds.size,
+            };
+            cells.in_row.set(Some(TailInRow {
+                slot: inside(slot),
+                line: inside(line),
+                mask,
+            }));
+        }
+        let Some(TailInRow { slot, line, mask }) = cells.in_row.get() else {
+            return;
+        };
+        let at_row = |bounds: Bounds<Pixels>| Bounds {
+            origin: bounds.origin + row.origin,
+            size: bounds.size,
+        };
+        let (slot, line) = (at_row(slot), at_row(line));
         let clip = mask
             .intersect(&line)
             .intersect(&window.content_mask().bounds);

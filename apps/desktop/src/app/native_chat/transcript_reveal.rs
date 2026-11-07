@@ -196,12 +196,12 @@ fn transcript_skeleton(p: &ChatAppearance) -> AnyElement {
                         }
                     })
                     .child(
-                    div()
-                        .w(gpui::relative(row.widths.first().copied().unwrap_or(0.4)))
-                        .h(px(g.bubble_height * s))
-                        .rounded(px(g.bubble_radius * s))
-                        .bg(tint),
-                )
+                        div()
+                            .w(gpui::relative(row.widths.first().copied().unwrap_or(0.4)))
+                            .h(px(g.bubble_height * s))
+                            .rounded(px(g.bubble_radius * s))
+                            .bg(tint),
+                    )
             } else {
                 div()
                     .w_full()

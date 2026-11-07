@@ -171,9 +171,13 @@ fn loader(key: &str, p: &ChatAppearance, reduce_motion: bool) -> AnyElement {
 }
 
 impl NativeChatView {
-    /// CDXC:SessionChat 2026-11-07 DECISION:
-    /// Agent work's Quiet lines and Grouped. User: the agent's work should be "way less prominent, the opposite of a panel, with an icon and a checkmark". Quiet lines draws each "Worked for" card as one dim 12.5px line (a clock, a green check, "Worked for 59s · 5 tool calls") and the turn's edits as the line right after it (a pencil, "Edited 2 files +14 −3" and the names), with no fill, border or radius; opening a line lists its calls on a thin rail, one per line, and opening one shows today's detail. Grouped draws everything the agent did for one message of yours as one such line ("Worked for 1m 16s · 9 tool calls · edited 2 files +14 −3") with the agent's messages after it. The running turn's "N tool calls" and "Edited N files" draw as live quiet lines in both. Detailed opens them. Default keeps today's cards: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
-    /// SEE-ALSO: packages/gx-chat-core/src/transcript/grouped_work.rs (the Grouped line), apps/mobile/app/src/chat/ (the phone draws the same lines).
+    /// Agent work's Quiet lines and Grouped. Quiet lines draws each "Worked for" card as one dim line (a clock, a green check, "Worked for 59s · 5 tool calls") and the turn's edits as the line right after it (a pencil, "Edited 2 files +14 −3" and the names), with no fill, border or radius; opening a line lists its calls on a thin rail, one per line, and opening one shows today's detail. Grouped draws everything the agent did for one message of yours as one such line ("Worked for 1m 16s · 9 tool calls · edited 2 files +14 −3") with the agent's messages after it. The running turn's "N tool calls" and "Edited N files" draw as live quiet lines in both. Detailed opens them.
+    ///
+    /// CDXC:SessionChat 2026-11-07 WHY:
+    /// The 12.5px type of the lines is the builder's pick from the mockups, not the user's.
+    ///
+    /// CDXC:SessionChat 2026-11-07 SEE-ALSO:
+    /// packages/gx-chat-core/src/transcript/chat_look.rs (the user decision), packages/gx-chat-core/src/transcript/grouped_work.rs (the Grouped line), apps/mobile/app/src/chat/native/transcript/quietWork.tsx (the phone draws the same lines).
     pub(super) fn quiet_work_line(
         &self,
         line: QuietLine,

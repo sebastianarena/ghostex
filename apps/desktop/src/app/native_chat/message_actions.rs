@@ -341,7 +341,9 @@ impl NativeChatView {
                 .when(!left, |row| row.pr(px(4.0 * p.scale)))
                 .when(left, |row| row.w_full().justify_start())
                 .when_some(
-                    (!p.names()).then(|| message_time(&id, message, p)).flatten(),
+                    (!p.names())
+                        .then(|| message_time(&id, message, p))
+                        .flatten(),
                     |row, time| row.child(time),
                 )
                 .child(buttons)

@@ -169,6 +169,9 @@ pub struct TranscriptViewState {
     /// The chat look settings (`transcript/chat_look.rs`), all Default unless the user picked one.
     /// A change throws the cached projections away.
     pub chat_look: crate::transcript::chat_look::ChatLook,
+    /// The host has sent its own chat look ([`crate::ChatSettings::chat_look`]), so a chat read's
+    /// `chatLook` no longer applies (`transcript/chat_look.rs`).
+    pub chat_look_from_host: bool,
 }
 
 /// One message's full projection, with the source it was built from.
@@ -286,6 +289,7 @@ impl Default for TranscriptViewState {
             tool_cards: false,
             detailed_default: false,
             chat_look: Default::default(),
+            chat_look_from_host: false,
         }
     }
 }

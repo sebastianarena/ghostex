@@ -58,6 +58,12 @@ pub(super) struct WorkingCardCells {
     pub(super) tail_lead: PaintedSlot,
     /// The status row's line as last painted, which clips the lead's glow.
     pub(super) tail_line: Rc<Cell<Option<Bounds<Pixels>>>>,
+    /// Set when the status row painted this frame, so the lead measures where its slot and line
+    /// sit in the row again (status_tail.rs).
+    pub(super) tail_fresh: Rc<Cell<bool>>,
+    /// The slot and the line, offset from the status row's origin, with the clip the slot was
+    /// painted in, as last measured.
+    pub(super) tail_in_row: Rc<Cell<Option<super::status_tail::TailInRow>>>,
 }
 
 impl NativeChatView {
@@ -125,16 +131,8 @@ impl NativeChatView {
         let pill = self.scroll_bottom_icon_pill(p, cx)?;
         let s = p.scale;
         // The column the transcript's rows use (transcript.rs), the pill at its right end.
-        let column = div()
-            .w_full()
-            .max_w(px(768.0 * s))
-            .px(px(16.0 * s))
-            .when_some(p.transcript_width, |this, width| {
-                this.max_w(relative(1.0)).w(relative(width))
-            })
-            .when_some(self.held_text_width, |this, width| {
-                this.flex_shrink_0().w(px(width)).max_w(px(width))
-            })
+        let column = self
+            .with_transcript_width(div().w_full().max_w(px(768.0 * s)).px(px(16.0 * s)), p)
             .child(
                 div()
                     .flex()

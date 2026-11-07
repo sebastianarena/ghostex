@@ -8,7 +8,7 @@ use gpui::StatefulInteractiveElement;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _, Styled as _,
-    Window, div, px, relative,
+    Window, div, px,
 };
 use gpui_component::input::Textarea;
 use serde_json::{Value, json};
@@ -340,12 +340,7 @@ impl NativeChatView {
             // CDXC:SessionChat 2026-11-07 DECISION:
             // Chat box matches transcript width (`chatComposerMatchesTranscriptWidth`, desktop only). User: "the input bar itself... is very narrow, it does not get wider with the rest". On, the chat box, its pill strip and the status line under it take the transcript column's width, the Transcript width percentage and the width the rows hold while a panel slides (render.rs), so they shrink on a narrow pane exactly as the rows do. Off keeps the fixed 768px chat box: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
             .when(p.composer_matches_transcript && !maximized, |this| {
-                this.when_some(p.transcript_width, |this, w| {
-                    this.max_w(relative(1.0)).w(relative(w))
-                })
-                .when_some(self.held_text_width, |this, w| {
-                    this.flex_shrink_0().w(px(w)).max_w(px(w))
-                })
+                self.with_transcript_width(this, p)
             })
             .when(maximized, |this| this.p_0().max_w_full().h_full().min_h_0());
         // First in the stack, right above whatever else waits on the user (working_card.rs). With
