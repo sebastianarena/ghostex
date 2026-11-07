@@ -8,7 +8,7 @@
 //! alone becomes one too, so the renderers draw a single style. The running turn's rows and every
 //! other row stay where they are, after the line.
 //!
-//! CDXC:SessionChat 2026-11-07 WHY: the line's time adds up each merged turn's own time (`presentation::turn_worked_ms`), not their labels: a prompt's label already runs on through the OMP wake-ups after it (`turn_worked_label`), so adding the labels counted those turns twice.
+//! CDXC:SessionChat 2026-11-07 WHY: the line is timed from its first turn's opener to the latest end of its turns, a wake-up counting only its reply (`presentation::turn_times`), the way a prompt's own label runs on through its OMP wake-ups (`turn_worked_label`, 2026-11-03). Adding up each turn's own span dropped the wait between a reply and its wake-up that the label counts on purpose, so the same reply read "1m 16s" in Default and "16s" in Grouped; adding up the labels would count the wake-ups twice. So the line never reads shorter than any of its turns.
 //!
 //! CDXC:SessionChat 2026-11-07 SEE-ALSO: apps/desktop/src/app/native_chat/ (desktop and web) and apps/mobile/app/src/chat/ (phone) draw `grouped-work`; `extras/transcript_search.rs` reads its fold for Find; `transcript/rows.rs` (`without_worked_time`) relabels the newest one "Previous turn".
 
@@ -44,7 +44,8 @@ pub fn group_work(items: Vec<TranscriptItem>) -> Vec<TranscriptItem> {
 /// One `grouped-work` row for a run of `completed-work` rows, oldest first.
 fn merge(run: Vec<TranscriptItem>) -> TranscriptItem {
     let mut id = String::new();
-    let mut worked_ms = 0;
+    let mut started: Option<i64> = None;
+    let mut ended: Option<i64> = None;
     let mut tool_calls = 0;
     let mut changed: Vec<String> = Vec::new();
     let mut files: Vec<Value> = Vec::new();
@@ -73,8 +74,11 @@ fn merge(run: Vec<TranscriptItem>) -> TranscriptItem {
         };
         if id.is_empty() {
             id = format!("grouped:{turn_id}");
+            started = tally.started_ms;
+            ended = tally.ended_ms;
+        } else {
+            ended = ended.max(tally.extends_to_ms);
         }
-        worked_ms += tally.worked_ms.unwrap_or(0);
         tool_calls += tally.tool_calls;
         for path in tally.changed {
             if !changed.contains(&path) {
@@ -110,8 +114,7 @@ fn merge(run: Vec<TranscriptItem>) -> TranscriptItem {
     }
     TranscriptItem::GroupedWork {
         id,
-        // Plain "Worked" when no merged turn had a length to show.
-        label: worked_duration_label(Some(0), Some(worked_ms)),
+        label: worked_duration_label(started, ended),
         stats,
         files_card: file_change_card(&files),
         files_label: format!(

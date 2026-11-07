@@ -584,15 +584,22 @@ fn turn_worked_label(
     worked_duration_label(turn.user.timestamp, end)
 }
 
-/// How long `turn` itself ran, which a Grouped line adds up (`grouped_work.rs`): from its opener
-/// to its end, without the OMP wake-ups after it that its own label runs on through
-/// ([`turn_worked_label`]), since the line holds their turns as well.
-fn turn_worked_ms(
+/// The times a Grouped line reads off `turn` (`grouped_work.rs`): when it started, when it ended,
+/// and how far it carries a line an earlier turn opened, which for an OMP wake-up is its reply
+/// alone, as [`turn_worked_label`] runs a prompt's time on through them.
+fn turn_times(
     turn: &crate::transcript::turns::CompletedWorkTurn,
     loaded: Option<&[ChatMessage]>,
-) -> Option<i64> {
-    let (start, end) = (turn.user.timestamp?, turn_end(turn, loaded)?);
-    (end > start).then_some(end - start)
+) -> (Option<i64>, Option<i64>, Option<i64>) {
+    let end = turn_end(turn, loaded);
+    let extends_to = if is_omp_wake_kind(&turn.user) {
+        turn.final_message
+            .as_ref()
+            .and_then(|reply| reply.timestamp)
+    } else {
+        end
+    };
+    (turn.user.timestamp, end, extends_to)
 }
 
 /// The Worked line of the newest turn a user row opened, when it has finished, timed, with no
@@ -1310,6 +1317,7 @@ fn turn_items(
                 let stats = counted_work_stats(tool_calls, changed_files);
                 let loaded =
                     section.map(|rows| crate::transcript::transcript::section_part(turn, rows));
+                let (started_ms, ended_ms, extends_to_ms) = turn_times(turn, loaded);
                 let deferred_value = turn
                     .section
                     .as_ref()
@@ -1384,11 +1392,13 @@ fn turn_items(
                         .as_ref()
                         .map(|message| builder.message_or_placeholder(message, eager, Draw::Row)),
                     read_images: Vec::new(),
-                    tally: WorkTally {
-                        worked_ms: turn_worked_ms(turn, loaded),
+                    tally: Box::new(WorkTally {
+                        started_ms,
+                        ended_ms,
+                        extends_to_ms,
                         tool_calls,
                         changed,
-                    },
+                    }),
                 }
             })
             .collect()

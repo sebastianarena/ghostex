@@ -106,9 +106,9 @@ pub enum TranscriptItem {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         read_images: Vec<Value>,
         /// What a Grouped line adds up when it folds this turn in (`transcript/grouped_work.rs`).
-        /// Never on the wire.
+        /// Never on the wire; boxed so the row stays no bigger than the others need.
         #[serde(skip)]
-        tally: WorkTally,
+        tally: Box<WorkTally>,
     },
     /// Agent work set to Grouped: the finished turns the agent ran for one message of yours, folded
     /// into one line (`transcript/grouped_work.rs`). The fields are those of `completed-work`
@@ -164,9 +164,13 @@ pub struct GroupedTurn {
 /// up without reading its labels back.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct WorkTally {
-    /// How long the turn itself ran, from its opener to its end (`presentation::turn_end`); `None`
-    /// when it has no length to show.
-    pub worked_ms: Option<i64>,
+    /// When the turn's opener arrived, which starts a line the turn opens.
+    pub started_ms: Option<i64>,
+    /// When the turn ended (`presentation::turn_end`), which ends a line the turn opens.
+    pub ended_ms: Option<i64>,
+    /// How far the turn carries a line it does not open: an OMP wake-up's reply only, the way a
+    /// prompt's own label runs on through them (`presentation::turn_worked_label`), else its end.
+    pub extends_to_ms: Option<i64>,
     /// Its tool calls, as `work_summary::work_stats` counts them.
     pub tool_calls: usize,
     /// The paths its "N files changed" counts, the held-back ones included.
