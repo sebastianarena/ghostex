@@ -25,8 +25,10 @@ pub(super) const QUIET_TEXT_GAP: f32 = 2.0;
 /// The hover group of one quiet line, which lights its icons and shows its chevron.
 const QUIET_GROUP: &str = "native-chat-quiet-line";
 /// The lines' type: 12.5px on a 20px line.
-const TEXT_SIZE: f32 = 12.5;
-const LINE_HEIGHT: f32 = 20.0;
+pub(super) const TEXT_SIZE: f32 = 12.5;
+pub(super) const LINE_HEIGHT: f32 = 20.0;
+/// The space between a line's icons and its text.
+pub(super) const ICON_GAP: f32 = 6.0;
 /// How much of the muted text colour a line shows at rest; hovered, it shows all of it.
 const DIM: f32 = 0.7;
 
@@ -37,7 +39,7 @@ impl ChatAppearance {
     }
 
     /// The colour of a quiet line at rest.
-    fn quiet_dim(&self) -> Hsla {
+    pub(super) fn quiet_dim(&self) -> Hsla {
         self.muted.opacity(DIM)
     }
 }
@@ -276,7 +278,7 @@ impl NativeChatView {
             .flex()
             .items_center()
             .min_w_0()
-            .gap(px(6.0 * s))
+            .gap(px(ICON_GAP * s))
             .pr(px(4.0 * s))
             .text_size(px(TEXT_SIZE * s))
             .line_height(px(LINE_HEIGHT * s))

@@ -73,6 +73,9 @@ pub(crate) struct NativeChatView {
     pub(super) coordinator_intro_dont_show: bool,
     /// What the working card measured at its last paint (`working_card.rs`).
     pub(super) working_card: super::working_card::WorkingCardCells,
+    /// The transcript list holds the status row after its last row (Status line in the chat,
+    /// status_tail.rs).
+    pub(super) status_tail: bool,
     /// The chat box's pill strip (pills_strip.rs).
     pub(super) pills_strip: super::pills_strip::PillsStripCells,
     pub(super) save_markdown_window: super::save_markdown::SaveMarkdownWindowState,
@@ -431,6 +434,7 @@ impl NativeChatView {
             pill_bounds: Default::default(),
             coordinator_intro_dont_show: false,
             working_card: Default::default(),
+            status_tail: false,
             pills_strip: Default::default(),
             context_editor_window: Default::default(),
             save_markdown_window: Default::default(),

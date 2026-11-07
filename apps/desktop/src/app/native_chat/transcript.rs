@@ -65,8 +65,30 @@ impl NativeChatView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        // Status line in the chat: the row after the last one is the working line (status_tail.rs).
+        if index >= self.items.len() {
+            return self.status_tail_row(index, cx);
+        }
         let items = self.items.clone();
         self.transcript_item_row(&items, index, true, window, cx)
+    }
+
+    /// The column every transcript row sits in: the transcript's width (768px, or the Transcript
+    /// width percentage), held while a panel slides (render.rs), ending with the row gap.
+    pub(super) fn transcript_row_column(&self, p: &ChatAppearance) -> gpui::Div {
+        let s = p.scale;
+        div()
+            .w_full()
+            .max_w(px(768.0 * s))
+            .px(px(16.0 * s))
+            .pb(px(super::transcript_layout::LAYOUT.row_gap * s))
+            .when_some(p.transcript_width, |this, width| {
+                this.max_w(relative(1.0)).w(relative(width))
+            })
+            // While a panel slides the row keeps its text width (render.rs).
+            .when_some(self.held_text_width, |this, width| {
+                this.flex_shrink_0().w(px(width)).max_w(px(width))
+            })
     }
 
     /// One row of a projected transcript. The subagent viewer renders its own item list
@@ -81,7 +103,13 @@ impl NativeChatView {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         self.in_subagent = !main;
-        self.detail_rows.start_row(main, index, items.len());
+        // The main list's length, which holds the status row too while it shows (status_tail.rs).
+        let rows = if main {
+            self.list.item_count()
+        } else {
+            items.len()
+        };
+        self.detail_rows.start_row(main, index, rows);
         let item = &items[index];
         let mut p = ChatAppearance::current(&self.snapshot).on_window_glass(
             crate::app::helpers::window_glass_active_for(self.main_window),
@@ -286,21 +314,7 @@ impl NativeChatView {
                 };
                 this.pt(px(32.0 * s + header))
             })
-            .child(
-                div()
-                    .w_full()
-                    .max_w(px(768.0 * s))
-                    .px(px(16.0 * s))
-                    .pb(px(super::transcript_layout::LAYOUT.row_gap * s))
-                    .when_some(p.transcript_width, |this, width| {
-                        this.max_w(relative(1.0)).w(relative(width))
-                    })
-                    // While a panel slides the row keeps its text width (render.rs).
-                    .when_some(self.held_text_width, |this, width| {
-                        this.flex_shrink_0().w(px(width)).max_w(px(width))
-                    })
-                    .child(content),
-            )
+            .child(self.transcript_row_column(&p).child(content))
             .into_any_element()
     }
 

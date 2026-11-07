@@ -67,6 +67,9 @@ pub(crate) struct ChatAppearance {
     pub(crate) window_glass: bool,
     /// The chat look settings, from the document's `chatLook` (absent: all Default, today's chat).
     pub(crate) chat_look: ChatLook,
+    /// Chat box matches transcript width (`chatComposerMatchesTranscriptWidth`, desktop only): the
+    /// chat box takes the transcript column's width (composer.rs).
+    pub(crate) composer_matches_transcript: bool,
     /// Your message's fill under the Band style: one input step further off the background than
     /// the bubble (`input`).
     pub(crate) user_band: Hsla,
@@ -324,6 +327,7 @@ impl ChatAppearance {
             // Published only when a setting is off Default, with the effective layout already in
             // `messageLayout` (gx-chat-core transcript/chat_look.rs).
             chat_look: ChatLook::deserialize(&state["chatLook"]).unwrap_or_default(),
+            composer_matches_transcript: enabled("chatComposerMatchesTranscriptWidth"),
             transcript_width: enabled("sessionChatCustomTranscriptWidthEnabled").then(|| {
                 settings
                     .get("sessionChatTranscriptWidthPercent")

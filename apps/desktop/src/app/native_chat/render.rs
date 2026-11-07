@@ -143,6 +143,8 @@ impl Render for NativeChatView {
         crate::app::helpers::indicator_animation::render_indicator_frames_animation_only(
             cx.entity_id(),
         );
+        // Status line in the chat: the working line joins or leaves the rows before they are drawn.
+        self.sync_status_tail(&p, window);
         let transcript = self.render_transcript_host(window, cx);
         let rows = self.list.item_count();
         let body = if covered {
