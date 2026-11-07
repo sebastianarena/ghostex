@@ -606,6 +606,16 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("chatSendOnPick", J::Bool(false)),
     ("chatAnswersWaitForIdle", J::Bool(false)),
     ("chatPageOpenTarget", J::Str("popup")),
+    // CDXC:SessionChat 2026-11-07 DECISION: User: "align all chats to the left like Slack or Claude Code". It is opt-in: maddada's rule as Sebastian relayed it, "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
+    ("chatMessageLayout", J::Str("default")),
+    // CDXC:SessionChat 2026-11-07 DECISION: User: "what needs to shine is the text". The user's messages stay bubbles on the right until a style is picked; any other style also left-aligns them. Advanced and off by default, per maddada's rule: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
+    ("chatUserMessageStyle", J::Str("default")),
+    // CDXC:SessionChat 2026-11-07 DECISION: User: the agent's work should be "way less prominent, the opposite of a panel, with an icon and a checkmark". Default keeps today's Worked for card; Quiet lines and Grouped replace the tool call cards. Advanced and off by default: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
+    ("chatAgentWorkStyle", J::Str("default")),
+    // CDXC:SessionChat 2026-11-07 DECISION: User: "the line that has the status that shows at the top of the input bar, that I really enjoyed in Claude to be part of the messages". Off by default and advanced, per maddada's rule: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
+    ("chatStatusInTranscript", J::Bool(false)),
+    // CDXC:SessionChat 2026-11-07 DECISION: User: "align all chats to the left like Slack or Claude Code"; with a custom Transcript width the chat box may take the same width. Off by default and advanced: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
+    ("chatComposerMatchesTranscriptWidth", J::Bool(false)),
     // CDXC:Coordinators 2026-11-05 DECISION: the Board pill opens the side list until the user picks Columns (extras/coordinator_board.rs in gx-chat-core).
     ("coordinatorBoardView", J::Str("list")),
     // CDXC:AgentGuide 2026-11-02 DECISION: User (Q1066): the short Ghostex note goes to every agent session Ghostex starts, "on by default (with a setting to turn it off)".

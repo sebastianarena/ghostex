@@ -716,6 +716,25 @@ pub const ATTENTION_ALERTS_FOR_OPTIONS: &[Opt] =
 pub const COORDINATOR_BOARD_VIEW_OPTIONS: &[Opt] =
     &[opt("Side list", "list"), opt("Columns", "columns")];
 
+/// Message layout (`chatMessageLayout`), in the Settings control's order.
+pub const CHAT_MESSAGE_LAYOUT_OPTIONS: &[Opt] =
+    &[opt("Default", "default"), opt("Left aligned", "left")];
+
+/// How the user's messages stand out (`chatUserMessageStyle`), in the Settings control's order.
+pub const CHAT_USER_MESSAGE_STYLE_OPTIONS: &[Opt] = &[
+    opt("Default", "default"),
+    opt("Band", "band"),
+    opt("Left rule", "rule"),
+    opt("Names", "names"),
+];
+
+/// How the agent's work shows in the transcript (`chatAgentWorkStyle`), in the Settings control's order.
+pub const CHAT_AGENT_WORK_STYLE_OPTIONS: &[Opt] = &[
+    opt("Default", "default"),
+    opt("Quiet lines", "quiet"),
+    opt("Grouped", "grouped"),
+];
+
 /// Where agents open a page they built for the user (`agentPreviewBrowser`), in the Settings control's order.
 pub const AGENT_PREVIEW_BROWSER_OPTIONS: &[Opt] = &[
     opt("Ask", "ask"),

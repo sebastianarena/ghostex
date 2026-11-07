@@ -53,7 +53,7 @@
     {
       "key": "sessionChatTranscriptWidthPercent",
       "title": "Transcript width",
-      "subtitle": "The centered transcript's width on wide panes. Auto matches the prompt composer; drag to set a percentage of the pane instead. The prompt composer keeps its standard width either way.",
+      "subtitle": "The centered transcript's width on wide panes. Auto matches the prompt composer; drag to set a percentage of the pane instead. The prompt composer keeps its standard width either way unless Chat box matches transcript width is on.",
       "tab": "chat",
       "tabTitle": "Chat",
       "section": "chat",
@@ -81,13 +81,120 @@
     {
       "key": "chatToolCallCards",
       "title": "Tool call cards (preview)",
-      "subtitle": "Show each run of tool calls as one card: it counts the calls, says what each one is doing and then did, with its result and time, explains a failure, and folds to one line once the agent writes again. Off keeps the current look.",
+      "subtitle": "Show each run of tool calls as one card: it counts the calls, says what each one is doing and then did, with its result and time, explains a failure, and folds to one line once the agent writes again. Off keeps the current look. Agent work's Quiet lines and Grouped replace these cards.",
       "tab": "chat",
       "tabTitle": "Chat",
       "section": "chat",
       "sectionTitle": "Chat",
       "type": "boolean",
       "default": false,
+      "agentWritable": true
+    },
+    {
+      "key": "chatMessageLayout",
+      "title": "Message layout",
+      "subtitle": "Default puts your messages on the right as bubbles. Left aligned starts every message at the same left edge.",
+      "tab": "chat",
+      "tabTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "enum",
+      "default": "default",
+      "options": [
+        {
+          "label": "Default",
+          "value": "default"
+        },
+        {
+          "label": "Left aligned",
+          "value": "left"
+        }
+      ],
+      "advanced": true,
+      "agentWritable": true
+    },
+    {
+      "key": "chatUserMessageStyle",
+      "title": "Your messages",
+      "subtitle": "How your messages stand out from the agent's: Default keeps the bubble, Band puts them on a soft full-width strip, Left rule adds a coloured bar, Names starts each turn with a name line. Any choice but Default also left-aligns them.",
+      "tab": "chat",
+      "tabTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "enum",
+      "default": "default",
+      "options": [
+        {
+          "label": "Default",
+          "value": "default"
+        },
+        {
+          "label": "Band",
+          "value": "band"
+        },
+        {
+          "label": "Left rule",
+          "value": "rule"
+        },
+        {
+          "label": "Names",
+          "value": "names"
+        }
+      ],
+      "advanced": true,
+      "agentWritable": true
+    },
+    {
+      "key": "chatAgentWorkStyle",
+      "title": "Agent work",
+      "subtitle": "Default shows a Worked for card before each reply. Quiet lines shows the work and file edits as small dim lines you can click open. Grouped shows one line for everything the agent did for each of your messages.",
+      "tab": "chat",
+      "tabTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "enum",
+      "default": "default",
+      "options": [
+        {
+          "label": "Default",
+          "value": "default"
+        },
+        {
+          "label": "Quiet lines",
+          "value": "quiet"
+        },
+        {
+          "label": "Grouped",
+          "value": "grouped"
+        }
+      ],
+      "advanced": true,
+      "agentWritable": true
+    },
+    {
+      "key": "chatStatusInTranscript",
+      "title": "Status line in the chat",
+      "subtitle": "Show what the agent is doing as the last line of the chat instead of above the chat box.",
+      "tab": "chat",
+      "tabTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "boolean",
+      "default": false,
+      "advanced": true,
+      "agentWritable": true
+    },
+    {
+      "key": "chatComposerMatchesTranscriptWidth",
+      "title": "Chat box matches transcript width",
+      "subtitle": "When Transcript width is set to a percentage, the chat box takes the same width instead of its standard width.",
+      "tab": "chat",
+      "tabTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "boolean",
+      "default": false,
+      "advanced": true,
       "agentWritable": true
     },
     {
