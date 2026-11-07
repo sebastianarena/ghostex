@@ -113,7 +113,8 @@ impl NativeChatView {
                     status: status.into(),
                     color: p.muted,
                     actions,
-                    end: true,
+                    // A left-aligned message keeps its note on its own side.
+                    end: !p.left_aligned(),
                 },
                 p,
                 cx,

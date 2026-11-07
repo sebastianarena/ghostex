@@ -333,10 +333,17 @@ impl NativeChatView {
                 "chat-actions/copy",
                 json!({"type":"copyPrompt","text":prompt.clone()}),
             ));
+        // Under a left-aligned message the row starts at its left edge; a Names line already
+        // shows the time, so the row leaves it out (user_message_look.rs).
+        let left = p.left_aligned();
         Some(
             message_actions_row(p, false)
-                .pr(px(4.0 * p.scale))
-                .when_some(message_time(&id, message, p), |row, time| row.child(time))
+                .when(!left, |row| row.pr(px(4.0 * p.scale)))
+                .when(left, |row| row.w_full().justify_start())
+                .when_some(
+                    (!p.names()).then(|| message_time(&id, message, p)).flatten(),
+                    |row, time| row.child(time),
+                )
                 .child(buttons)
                 .into_any_element(),
         )

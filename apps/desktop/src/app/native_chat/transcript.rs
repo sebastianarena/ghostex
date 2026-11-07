@@ -12,7 +12,7 @@ use gpui::{
 use serde_json::Value;
 
 /// The space between the parts of one message row (its text, tools, cards and actions).
-const MESSAGE_PART_GAP: f32 = 8.0;
+pub(super) const MESSAGE_PART_GAP: f32 = 8.0;
 
 pub(crate) fn text(value: &Value, key: &str) -> String {
     value[key].as_str().unwrap_or_default().to_string()
@@ -122,12 +122,15 @@ impl NativeChatView {
                 };
                 let expanded = self.is_expanded(&key, *latest_reply || *work_open);
                 let motion = self.disclosure_frame(&key, expanded, cx);
-                let mut row = div()
-                    .flex()
-                    .flex_col()
-                    .w_full()
-                    .gap(px(8.0 * s))
-                    .child(self.message_row(user, &p, window, cx));
+                // Under Names the turn's agent part is drawn apart, under its own name line.
+                let names = main && p.names();
+                let user_row = self.message_row(user, &p, window, cx);
+                let (mut row, user_row) = if names {
+                    (div(), Some(user_row))
+                } else {
+                    (div().child(user_row), None)
+                };
+                row = row.flex().flex_col().w_full().gap(px(8.0 * s));
                 for output in outcome {
                     row = row.child(self.message_row(output, &p, window, cx));
                 }
@@ -154,6 +157,7 @@ impl NativeChatView {
                         .collect(),
                     None => work.iter().filter(folded).collect(),
                 };
+                let fold_rows_empty = fold_rows.is_empty();
                 if (reply.is_some() || *active) && !fold_rows.is_empty() {
                     row = row.child(
                         self.disclosure(
@@ -198,7 +202,31 @@ impl NativeChatView {
                         ));
                     }
                 }
-                row.into_any_element()
+                match user_row {
+                    Some(user_row) => {
+                        let agent_part = !outcome.is_empty()
+                            || !cards.is_empty()
+                            || ((reply.is_some() || *active) && !fold_rows_empty);
+                        div()
+                            .flex()
+                            .flex_col()
+                            .w_full()
+                            .gap(px(8.0 * s))
+                            .child(user_row)
+                            .when(agent_part, |turn| {
+                                turn.child(
+                                    div()
+                                        .flex()
+                                        .flex_col()
+                                        .w_full()
+                                        .children(self.agent_name_line(&p))
+                                        .child(row.pl(px(super::user_message_look::NAMES_INDENT * s))),
+                                )
+                            })
+                            .into_any_element()
+                    }
+                    None => row.into_any_element(),
+                }
             }
             TranscriptItem::CompletedWork { .. } => self.completed_work_row(item, &p, window, cx),
             // The Grouped line's renderer is not in yet: the row draws nothing until it is.
@@ -210,6 +238,31 @@ impl NativeChatView {
             TranscriptItem::Unknown(row) => {
                 self.message_item_row(&row["message"], items.get(index + 1), &p, window, cx)
             }
+        };
+        // Under Names the agent's rows sit in under its name line, which opens its first row after
+        // one of yours (user_message_look.rs).
+        let content = if main
+            && p.names()
+            && !matches!(item, TranscriptItem::Summary { .. })
+            && !is_user_row(item)
+        {
+            let opens_turn = index
+                .checked_sub(1)
+                .is_some_and(|previous| is_user_row(&items[previous]));
+            div()
+                .flex()
+                .flex_col()
+                .w_full()
+                .when(opens_turn, |row| row.children(self.agent_name_line(&p)))
+                .child(
+                    div()
+                        .w_full()
+                        .pl(px(super::user_message_look::NAMES_INDENT * s))
+                        .child(content),
+                )
+                .into_any_element()
+        } else {
+            content
         };
         self.detail_rows.end_row();
         self.row_find = None;
@@ -441,6 +494,9 @@ impl NativeChatView {
                 .into_any_element();
         }
         if message["role"] == "user" && message["suppressed"].is_null() {
+            if p.left_aligned() {
+                return self.left_user_message(row, &id, message, body, p, cx);
+            }
             // The prompt renders as markdown like the React bubble, which also makes it a selectable TextView; a plain string child cannot be selected.
             let mut bubble_appearance = p.clone();
             bubble_appearance.prose = p.strengthened(p.primary);
@@ -734,7 +790,7 @@ impl NativeChatView {
     /// A prompt's text in its bubble. A long one shows only its first lines (the core's
     /// `collapsedText`, `long_prompt.rs`) with Show more under them until the reader expands it,
     /// so the rest is never laid out unless it is read.
-    fn prompt_body(
+    pub(super) fn prompt_body(
         &self,
         id: &str,
         message: &Value,
@@ -780,6 +836,16 @@ impl NativeChatView {
             .child(prose)
             .child(self.show_more_toggle(format!("prompt-toggle:{id}"), key, expanded, p, cx))
             .into_any_element()
+    }
+}
+
+/// Whether a transcript row is one you wrote (or one standing in your place, such as a message
+/// another agent sent this one).
+fn is_user_row(item: &TranscriptItem) -> bool {
+    match item {
+        TranscriptItem::Message { message } => message["role"] == "user",
+        TranscriptItem::Unknown(row) => row["message"]["role"] == "user",
+        _ => false,
     }
 }
 

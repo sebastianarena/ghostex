@@ -98,6 +98,7 @@ mod thinking_card;
 mod tool_card;
 mod tool_run;
 mod tray_hotkeys;
+mod user_message_look;
 mod tray_layout;
 mod worktree_tray;
 
