@@ -91,6 +91,9 @@ pub(crate) struct NativeChatView {
     pub(super) in_work_fold: bool,
     /// True while any row of a completed turn renders: its writes belong to that turn's "N files changed" fold.
     pub(super) hide_file_changes: bool,
+    /// True while an opened quiet line's steps render (Agent work Quiet lines or Grouped,
+    /// quiet_work.rs): each call draws as a quiet step instead of a tool row.
+    pub(super) quiet_steps: bool,
     /// Every disclosure that is opening, closing or folding, and the state each was last drawn in.
     /// A cell because rows drawn through `&self` report their state too.
     pub(super) disclosure_motion: std::cell::RefCell<super::disclosure_motion::DisclosureMotions>,
@@ -440,6 +443,7 @@ impl NativeChatView {
             visual: Default::default(),
             in_work_fold: false,
             hide_file_changes: false,
+            quiet_steps: false,
             disclosure_motion: Default::default(),
             transcript_focus_follow: Default::default(),
             answer_hold: Default::default(),

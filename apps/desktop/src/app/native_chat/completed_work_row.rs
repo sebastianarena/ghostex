@@ -11,16 +11,17 @@
 use super::cards::{SINGLE_LINE_CARD, card_hover_fill};
 use super::disclosure_body::{DisclosureRail, disclosure_body};
 use super::disclosure_motion::{FoldFrame, FoldMotionKind, motion_clip};
+use super::quiet_work::{QUIET_TEXT_GAP, QuietLine, QuietMark, QuietSegment};
 use super::transcript::text;
 use super::{appearance::ChatAppearance, state::NativeChatView};
 use crate::app::native_chat::cursor::ChatCursor as _;
-use ghostex_gx_chat_core::TranscriptItem;
+use ghostex_gx_chat_core::{ProjectedMessage, TranscriptItem};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _, SharedString,
     StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
-use serde_json::json;
+use serde_json::{Value, json};
 use std::{cell::Cell, rc::Rc};
 
 /// Space between the parts of a finished turn.
@@ -49,6 +50,42 @@ fn eased_part(height: Rc<Cell<f32>>, factor: f32, content: AnyElement) -> AnyEle
     )
 }
 
+/// What a finished turn keeps out of its fold, drawn after it: shaped like the same-named fields
+/// of `completed-work`, and of each turn a `grouped-work` line merged.
+pub(super) struct WorkTail<'a> {
+    /// The turn's `work:` key, which its answered questions' cards are kept under.
+    pub key: &'a str,
+    pub artifacts: &'a [ProjectedMessage],
+    pub questions: &'a [Value],
+    pub sent_messages: &'a [Value],
+    pub workflows: &'a [Value],
+    pub final_message: Option<&'a Value>,
+}
+
+/// Each tail part with the space above it. The heading is a one-line card unless `above_is_card`
+/// says otherwise, so a stack of cards right under it (or under another stack) sits a row gap away
+/// (`SINGLE_LINE_CARD.gap_above`); `first_text_gap`, when given, is the space above a first part
+/// that is not a card (a quiet line's 2px, quiet_work.rs).
+pub(super) fn spaced_tail(
+    parts: Vec<(AnyElement, bool)>,
+    mut above_is_card: bool,
+    first_text_gap: Option<f32>,
+) -> Vec<(AnyElement, f32)> {
+    let mut first = true;
+    parts
+        .into_iter()
+        .map(|(part, is_card)| {
+            let gap = match first_text_gap {
+                Some(gap) if first && !is_card => gap,
+                _ => SINGLE_LINE_CARD.gap_above(above_is_card, is_card, PART_GAP),
+            };
+            first = false;
+            above_is_card = is_card;
+            (part, gap)
+        })
+        .collect()
+}
+
 impl NativeChatView {
     pub(super) fn completed_work_row(
         &mut self,
@@ -73,6 +110,9 @@ impl NativeChatView {
             return div().into_any_element();
         };
         let s = p.scale;
+        // Agent work Quiet lines: the bar is a quiet work line, the files fold a quiet edit line and
+        // the opened log the line's steps (quiet_work.rs).
+        let quiet = p.quiet_work();
         let id = format!("work:{turn}");
         let expanded = self.is_expanded(&id, p.work_open);
         self.disclosure_motion
@@ -83,13 +123,18 @@ impl NativeChatView {
         // `read_images.rs`); opened, each row shows its own.
         let card = &*SINGLE_LINE_CARD;
         let card_fill = card.solid_fill(p);
+        let edge = if quiet { p.background } else { card_fill };
         let pictures = (!expanded && motion.is_none())
             .then(|| {
                 let pictures = serde_json::Value::Array(read_images.clone());
-                self.read_picture_strip(&format!("{id}:read"), &pictures, 0.0, card_fill, p, cx)
+                self.read_picture_strip(&format!("{id}:read"), &pictures, 0.0, edge, p, cx)
             })
             .flatten();
-        let heading = self.work_summary(item, &id, expanded, pictures, p, cx);
+        let heading = if quiet {
+            self.quiet_work_summary(item, &id, expanded, pictures, p, cx)
+        } else {
+            self.work_summary(item, &id, expanded, pictures, p, cx)
+        };
         // Every row of a finished turn hides its own writes; they belong to the turn's
         // "N files changed" fold below the heading (file_change_card.rs). Rows that are still
         // folding keep theirs until they are gone, as they were a moment ago.
@@ -109,70 +154,158 @@ impl NativeChatView {
                 log.push(notice);
             }
             self.in_work_fold = true;
+            self.quiet_steps = quiet;
             for message in work {
                 log.push(self.message_row(message, p, window, cx));
             }
+            self.quiet_steps = false;
             self.in_work_fold = false;
             (!log.is_empty()).then(|| {
-                vec![disclosure_body(
-                    p,
-                    DisclosureRail::Work,
-                    8.0,
-                    id.clone(),
-                    "Collapse completed work",
-                    log,
-                    cx,
-                )]
+                vec![if quiet {
+                    self.quiet_steps(log, p)
+                } else {
+                    disclosure_body(
+                        p,
+                        DisclosureRail::Work,
+                        8.0,
+                        id.clone(),
+                        "Collapse completed work",
+                        log,
+                        cx,
+                    )
+                }]
             })
         } else {
             None
         };
         self.hide_file_changes = true;
         let files = self.completed_files_fold(item, p, cx);
-        // Each part after the files, and whether it is a stack of one-line cards.
-        let mut tail: Vec<(AnyElement, bool)> = Vec::new();
-        for message in artifacts {
-            tail.push((self.message_row(message, p, window, cx), false));
-        }
-        // The turn's answered questions, lifted out of the fold so an exchange the reader took
-        // part in is never buried by a collapsed "Worked for Xs" section.
-        if let Some(cards) = self.question_exchange_cards(&id, questions, p, cx) {
-            tail.push((cards, true));
-        }
-        if let Some(cards) = self.sent_agent_message_cards(sent_messages, p, cx) {
-            tail.push((cards, true));
-        }
-        if let Some(cards) = self.workflow_cards(workflows, p, cx) {
-            tail.push((cards, false));
-        }
-        if let Some(reply) = final_message.as_deref().filter(|reply| reply.is_object()) {
-            tail.push((self.message_row(reply, p, window, cx), false));
-        }
-        // The space above each tail part: the heading is a one-line card, so a stack of cards right
-        // under it (or under another stack) sits a row gap away (`SINGLE_LINE_CARD.gap_above`).
-        let mut above_is_card = log.is_none() && files.is_none();
-        let tail: Vec<(AnyElement, f32)> = tail
-            .into_iter()
-            .map(|(part, is_card)| {
-                let gap = SINGLE_LINE_CARD.gap_above(above_is_card, is_card, PART_GAP);
-                above_is_card = is_card;
-                (part, gap)
-            })
-            .collect();
+        let tail = self.work_tail_parts(
+            WorkTail {
+                key: &id,
+                artifacts,
+                questions,
+                sent_messages,
+                workflows,
+                final_message: final_message.as_deref(),
+            },
+            p,
+            window,
+            cx,
+        );
+        // Quiet lines sit with no gap between them, and the agent's text 2px under them.
+        let (part_gap, tail) = if quiet {
+            (0.0, spaced_tail(tail, false, Some(QUIET_TEXT_GAP)))
+        } else {
+            (
+                PART_GAP,
+                spaced_tail(tail, log.is_none() && files.is_none(), None),
+            )
+        };
         self.hide_file_changes = false;
 
         let Some(frame) = motion else {
             let spaced = |part: AnyElement, gap: f32| div().pt(px(gap * s)).child(part);
             let mut row = div().flex().flex_col().w_full().child(heading);
             if let Some(log) = log {
-                row = row.children(log.into_iter().map(|part| spaced(part, PART_GAP)));
+                row = row.children(log.into_iter().map(|part| spaced(part, part_gap)));
             }
             return row
-                .children(files.map(|part| spaced(part, PART_GAP)))
+                .children(files.map(|part| spaced(part, part_gap)))
                 .children(tail.into_iter().map(|(part, gap)| spaced(part, gap)))
                 .into_any_element();
         };
-        self.moving_completed_work_row(&id, frame, heading, log, files, tail, s)
+        self.moving_completed_work_row(&id, frame, heading, log, files, tail, part_gap, s)
+    }
+
+    /// The parts of a finished turn after its fold, in order: its artifacts, its answered
+    /// questions, the messages its work sent other agents, its Workflow cards and its reply, each
+    /// with whether it is a stack of one-line cards. A Grouped line draws each merged turn's the
+    /// same way (transcript.rs).
+    pub(super) fn work_tail_parts(
+        &mut self,
+        tail: WorkTail<'_>,
+        p: &ChatAppearance,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Vec<(AnyElement, bool)> {
+        let mut parts: Vec<(AnyElement, bool)> = Vec::new();
+        for message in tail.artifacts {
+            parts.push((self.message_row(message, p, window, cx), false));
+        }
+        // The turn's answered questions, lifted out of the fold so an exchange the reader took
+        // part in is never buried by a collapsed "Worked for Xs" section.
+        if let Some(cards) = self.question_exchange_cards(tail.key, tail.questions, p, cx) {
+            parts.push((cards, true));
+        }
+        if let Some(cards) = self.sent_agent_message_cards(tail.sent_messages, p, cx) {
+            parts.push((cards, true));
+        }
+        if let Some(cards) = self.workflow_cards(tail.workflows, p, cx) {
+            parts.push((cards, false));
+        }
+        if let Some(reply) = tail.final_message.filter(|reply| reply.is_object()) {
+            parts.push((self.message_row(reply, p, window, cx), false));
+        }
+        parts
+    }
+
+    /// A finished turn's quiet work line under Agent work Quiet lines: "Worked for 59s · 5 tool
+    /// calls", the closed line's pictures under it. The files count is left to the edit line
+    /// under it, so it shows once.
+    fn quiet_work_summary(
+        &self,
+        item: &TranscriptItem,
+        id: &str,
+        expanded: bool,
+        pictures: Option<AnyElement>,
+        p: &ChatAppearance,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let TranscriptItem::CompletedWork {
+            id: turn,
+            label,
+            stats,
+            files,
+            expandable,
+            deferred,
+            ..
+        } = item
+        else {
+            return div().into_any_element();
+        };
+        let edit_line = !files.is_empty()
+            || deferred
+                .as_ref()
+                .and_then(|work| work["filePaths"].as_array())
+                .is_some_and(|paths| !paths.is_empty());
+        let actions = deferred
+            .as_ref()
+            .filter(|work| work.is_object())
+            .map(|work| json!({"type":"loadWork","id":turn,"work":work}))
+            .into_iter()
+            .collect();
+        let line = self.quiet_work_line(
+            QuietLine {
+                key: id.to_string(),
+                segments: quiet_segments(label, stats, !edit_line, p),
+                mark: QuietMark::Done,
+                expanded,
+                expandable: *expandable,
+                actions,
+            },
+            p,
+            cx,
+        );
+        div()
+            .flex()
+            .flex_col()
+            .w_full()
+            .min_w_0()
+            .gap(px(4.0 * p.scale))
+            .child(line)
+            .children(pictures)
+            .into_any_element()
     }
 
     /// The bar a finished turn folds behind: a clock tile with a green check badge, "Worked for
@@ -314,9 +447,10 @@ impl NativeChatView {
         log: Option<Vec<AnyElement>>,
         files: Option<AnyElement>,
         tail: Vec<(AnyElement, f32)>,
+        part_gap: f32,
         s: f32,
     ) -> AnyElement {
-        let spaced = |part: AnyElement| div().pt(px(PART_GAP * s)).child(part).into_any_element();
+        let spaced = |part: AnyElement| div().pt(px(part_gap * s)).child(part).into_any_element();
         let mut row = div().flex().flex_col().w_full();
         let top = div()
             .flex()
@@ -345,7 +479,7 @@ impl NativeChatView {
                         .flex()
                         .flex_col()
                         .gap(px(live_row_gap() * s))
-                        .pb(px((live_row_gap() - PART_GAP) * s))
+                        .pb(px((live_row_gap() - part_gap) * s))
                         .opacity(frame.rows_opacity)
                         .children(rows)
                         .into_any_element(),
@@ -365,7 +499,7 @@ impl NativeChatView {
                     self.disclosure_motion.borrow_mut().height(id, "log"),
                     frame.log,
                     div()
-                        .pt(px(PART_GAP * s))
+                        .pt(px(part_gap * s))
                         .opacity(frame.rows_opacity)
                         .children(log)
                         .into_any_element(),
@@ -379,4 +513,25 @@ impl NativeChatView {
         )
         .into_any_element()
     }
+}
+
+/// A quiet line's text: the label, then each count after " · ", a failure in the error tone. The
+/// files count stays only when `with_files`.
+pub(super) fn quiet_segments(
+    label: &str,
+    stats: &[Value],
+    with_files: bool,
+    p: &ChatAppearance,
+) -> Vec<QuietSegment> {
+    let mut segments: Vec<QuietSegment> = vec![(label.to_string(), None)];
+    for stat in stats {
+        let kind = text(stat, "kind");
+        if kind == "files" && !with_files {
+            continue;
+        }
+        let failed = matches!(kind.as_str(), "failed" | "recovered");
+        segments.push((" \u{b7} ".into(), None));
+        segments.push((text(stat, "label"), failed.then(|| p.error())));
+    }
+    segments
 }

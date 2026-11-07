@@ -72,6 +72,7 @@ mod question_exchange;
 mod question_form;
 mod questions_list;
 pub(crate) mod queue;
+mod quiet_work;
 mod read_pictures;
 mod reference_menu;
 mod relayed_approval;
@@ -98,8 +99,8 @@ mod thinking_card;
 mod tool_card;
 mod tool_run;
 mod tray_hotkeys;
-mod user_message_look;
 mod tray_layout;
+mod user_message_look;
 mod worktree_tray;
 
 mod code_block;

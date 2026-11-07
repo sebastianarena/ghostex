@@ -9,6 +9,7 @@
 //! The phone draws the same card in `apps/mobile/app/src/chat/native/transcript/FileChanges.tsx`.
 
 use super::cards::SINGLE_LINE_CARD;
+use super::quiet_work::{QuietEdit, file_names};
 use super::{
     appearance::{ChatAppearance, ChatFilledButton as _},
     state::NativeChatView,
@@ -181,17 +182,37 @@ impl NativeChatView {
         let simple_key = format!("files:{id}");
         // A write waiting on an approval opens the group (gx-chat-core `approval_wait.rs`).
         let awaiting = files.iter().any(|file| file["awaitingApproval"] == true);
-        let simple_expanded = self.is_expanded(&simple_key, awaiting);
-        if p.simple {
+        // Agent work Quiet lines or Grouped: the edits are one live edit line in every view, open
+        // in Detailed (quiet_work.rs).
+        let quiet = p.quiet_work();
+        let simple_expanded = self.is_expanded(&simple_key, awaiting || (quiet && p.work_open));
+        if p.simple || quiet {
             let motion = self.disclosure_frame(&simple_key, simple_expanded, cx);
-            rows.push(self.disclosure(
-                simple_key.clone(),
-                text(message, "simpleFileLabel"),
-                simple_expanded,
-                None,
-                p,
-                cx,
-            ));
+            rows.push(if quiet {
+                let summary = &message["fileCard"];
+                self.quiet_edit_line(
+                    QuietEdit {
+                        key: simple_key.clone(),
+                        label: text(message, "simpleFileLabel"),
+                        added: summary["added"].as_u64().unwrap_or(0),
+                        removed: summary["removed"].as_u64().unwrap_or(0),
+                        names: file_names(summary["paths"].as_array().into_iter().flatten()),
+                        expanded: simple_expanded,
+                        actions: Vec::new(),
+                    },
+                    p,
+                    cx,
+                )
+            } else {
+                self.disclosure(
+                    simple_key.clone(),
+                    text(message, "simpleFileLabel"),
+                    simple_expanded,
+                    None,
+                    p,
+                    cx,
+                )
+            });
             if !simple_expanded && motion.is_none() {
                 return rows;
             }
@@ -257,7 +278,10 @@ impl NativeChatView {
             return None;
         }
         let key = format!("work-files:{id}");
-        let expanded = self.is_expanded(&key, false);
+        // Agent work Quiet lines: the fold is the edit line right under the turn's work line, open
+        // in Detailed (quiet_work.rs).
+        let quiet = p.quiet_work();
+        let expanded = self.is_expanded(&key, quiet && p.work_open);
         let motion = self.disclosure_frame(&key, expanded, cx);
         let load = unread.then(|| json!({"type":"loadWork","id":id,"work":deferred}));
         let label = if p.simple {
@@ -265,13 +289,36 @@ impl NativeChatView {
         } else {
             files_label.clone()
         };
+        let gap = if quiet { 4.0 } else { 8.0 } * p.scale;
+        let heading = if quiet {
+            let paths = if unread {
+                deferred.as_ref().map(|work| &work["filePaths"])
+            } else {
+                Some(&files_card["paths"])
+            };
+            self.quiet_edit_line(
+                QuietEdit {
+                    key: key.clone(),
+                    label: simple_files_label.clone(),
+                    added: files_card["added"].as_u64().unwrap_or(0),
+                    removed: files_card["removed"].as_u64().unwrap_or(0),
+                    names: file_names(paths.and_then(Value::as_array).into_iter().flatten()),
+                    expanded,
+                    actions: load.into_iter().collect(),
+                },
+                p,
+                cx,
+            )
+        } else {
+            self.disclosure(key.clone(), label, expanded, load, p, cx)
+        };
         let mut group = div()
             .flex()
             .flex_col()
             .w_full()
             .min_w_0()
-            .gap(px(8.0 * p.scale))
-            .child(self.disclosure(key.clone(), label, expanded, load, p, cx));
+            .gap(px(gap))
+            .child(heading);
         if expanded || motion.is_some() {
             let body = if unread {
                 self.deferred_work_notice(item, p, cx)
@@ -279,14 +326,14 @@ impl NativeChatView {
                 Some(self.file_change_card(&format!("work:{id}"), files_card, files, p, cx))
             };
             if let Some(body) = body {
-                group = group.child(self.disclosure_body_motion(&key, motion, 8.0 * p.scale, body));
+                group = group.child(self.disclosure_body_motion(&key, motion, gap, body));
             }
         }
         Some(group.into_any_element())
     }
 
     /// One card: the header, then a row per file.
-    fn file_change_card(
+    pub(super) fn file_change_card(
         &mut self,
         id: &str,
         summary: &Value,

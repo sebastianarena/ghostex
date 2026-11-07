@@ -220,7 +220,9 @@ impl NativeChatView {
                                         .flex_col()
                                         .w_full()
                                         .children(self.agent_name_line(&p))
-                                        .child(row.pl(px(super::user_message_look::NAMES_INDENT * s))),
+                                        .child(
+                                            row.pl(px(super::user_message_look::NAMES_INDENT * s)),
+                                        ),
                                 )
                             })
                             .into_any_element()
@@ -229,8 +231,7 @@ impl NativeChatView {
                 }
             }
             TranscriptItem::CompletedWork { .. } => self.completed_work_row(item, &p, window, cx),
-            // The Grouped line's renderer is not in yet: the row draws nothing until it is.
-            TranscriptItem::GroupedWork { .. } => div().into_any_element(),
+            TranscriptItem::GroupedWork { .. } => self.grouped_work_row(item, &p, window, cx),
             TranscriptItem::Message { message } => {
                 self.message_item_row(message, items.get(index + 1), &p, window, cx)
             }
@@ -743,14 +744,36 @@ impl NativeChatView {
                 }
             }
         }
-        if !tool_card {
-            for card in self.file_change_cards(message, p, cx) {
-                row = row.child(card);
+        if p.quiet_work() && !tools_rendered && !tool_card {
+            // Agent work Quiet lines or Grouped: the edit line comes right after the work line,
+            // with no gap between them (quiet_work.rs).
+            let tools = self.tool_rows(message, p, cx);
+            let after_line = !tools.is_empty();
+            row = row.children(tools);
+            for (index, card) in self
+                .file_change_cards(message, p, cx)
+                .into_iter()
+                .enumerate()
+            {
+                row = row.child(if index == 0 && after_line {
+                    div()
+                        .mt(px(-MESSAGE_PART_GAP * s))
+                        .child(card)
+                        .into_any_element()
+                } else {
+                    card
+                });
             }
-        }
-        if !tools_rendered {
-            for tool in self.tool_rows(message, p, cx) {
-                row = row.child(tool);
+        } else {
+            if !tool_card {
+                for card in self.file_change_cards(message, p, cx) {
+                    row = row.child(card);
+                }
+            }
+            if !tools_rendered {
+                for tool in self.tool_rows(message, p, cx) {
+                    row = row.child(tool);
+                }
             }
         }
         // Inside a turn's work fold the raw tool pairs stay plain rows and the cards are hoisted
