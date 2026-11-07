@@ -614,7 +614,7 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("chatAgentWorkStyle", J::Str("default")),
     // CDXC:SessionChat 2026-11-07 DECISION: User: "the line that has the status that shows at the top of the input bar, that I really enjoyed in Claude to be part of the messages". Off by default and advanced, per maddada's rule: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
     ("chatStatusInTranscript", J::Bool(false)),
-    // CDXC:SessionChat 2026-11-07 DECISION: User: "align all chats to the left like Slack or Claude Code"; with a custom Transcript width the chat box may take the same width. Off by default and advanced: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
+    // CDXC:SessionChat 2026-11-07 DECISION: User: "the input bar itself... is very narrow, it does not get wider with the rest"; with a custom Transcript width the chat box may take the same width. Off by default and advanced: "all of these things need to be advanced mode and if we don't enable anything then it should remain to look like it does now".
     ("chatComposerMatchesTranscriptWidth", J::Bool(false)),
     // CDXC:Coordinators 2026-11-05 DECISION: the Board pill opens the side list until the user picks Columns (extras/coordinator_board.rs in gx-chat-core).
     ("coordinatorBoardView", J::Str("list")),

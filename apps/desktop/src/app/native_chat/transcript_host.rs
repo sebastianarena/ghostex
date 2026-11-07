@@ -42,6 +42,11 @@ impl NativeChatView {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         self.images.note_transcript_rows_drawn();
+        // The status row records where it paints again if it is drawn (status_tail.rs).
+        if self.status_tail {
+            self.working_card.tail_lead.set(None);
+            self.working_card.tail_line.set(None);
+        }
         let p = ChatAppearance::current(&self.snapshot).on_window_glass(
             crate::app::helpers::window_glass_active_for(self.main_window),
         );

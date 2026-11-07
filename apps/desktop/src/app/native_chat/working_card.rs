@@ -17,8 +17,9 @@ use crate::app::helpers::ThrottledAnimationExt;
 use crate::assets::chat_working::VISUAL;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, Context, FontFeatures, InteractiveElement as _, IntoElement, ParentElement as _,
-    StatefulInteractiveElement as _, Styled as _, canvas, div, px, relative, svg,
+    AnyElement, Bounds, Context, FontFeatures, InteractiveElement as _, IntoElement,
+    ParentElement as _, Pixels, StatefulInteractiveElement as _, Styled as _, canvas, div, px,
+    relative, svg,
 };
 use serde_json::Value;
 use std::{cell::Cell, rc::Rc, time::Duration};
@@ -44,11 +45,19 @@ pub(super) enum WorkingLineLook {
     Quiet,
 }
 
+/// Where an element was last painted, with the clip it was painted in.
+pub(super) type PaintedSlot = Rc<Cell<Option<(Bounds<Pixels>, Bounds<Pixels>)>>>;
+
 /// What the card measured at its last paint.
 #[derive(Default)]
 pub(super) struct WorkingCardCells {
     /// The label did not fit its line, so hovering it shows the whole text.
     label_truncated: Rc<Cell<bool>>,
+    /// The status row's empty lead slot as last painted, with the clip it was painted in
+    /// (status_tail.rs draws the animated lead there).
+    pub(super) tail_lead: PaintedSlot,
+    /// The status row's line as last painted, which clips the lead's glow.
+    pub(super) tail_line: Rc<Cell<Option<Bounds<Pixels>>>>,
 }
 
 impl NativeChatView {
@@ -160,26 +169,28 @@ impl NativeChatView {
         let reduced_motion = crate::app::helpers::gpui_macos_reduce_motion_enabled();
         let kind = card["labelKind"].as_str().unwrap_or_default();
         let activity = &card["activity"];
-        let lead = match kind {
-            "" => None,
-            "activity" => Some(activity_lead(activity, p, reduced_motion)),
-            "worked" => Some(
+        let lead = match look {
+            WorkingLineLook::Capsule => working_line_lead(card, p, reduced_motion),
+            // The row keeps the lead's place empty; the lead itself is drawn over it outside the
+            // cached transcript (status_tail.rs).
+            WorkingLineLook::Quiet => working_line_lead(card, p, true).map(|_| {
+                let slot = self.working_card.tail_lead.clone();
                 div()
+                    .relative()
                     .size(px(VISUAL.spark_box * s))
                     .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .justify_center()
                     .child(
-                        svg()
-                            .path("titlebar/check.svg")
-                            .size(px(VISUAL.spark_size * s))
-                            .text_color(p.muted),
+                        canvas(
+                            move |bounds, window, _| {
+                                slot.set(Some((bounds, window.content_mask().bounds)))
+                            },
+                            |_, _, _, _| {},
+                        )
+                        .absolute()
+                        .inset_0(),
                     )
-                    .into_any_element(),
-            ),
-            _ if card["working"] == true => Some(spark(p, reduced_motion)),
-            _ => None,
+                    .into_any_element()
+            }),
         };
         let chat = cx.entity_id();
         // A tool's label in runs, its file paths shortened (the core's `labelParts`).
@@ -216,7 +227,13 @@ impl NativeChatView {
                         .into_any_element(),
                 );
             }
-            trailing.extend(activity_trailing(activity, p, reduced_motion));
+            // In the transcript the progress track stays still: an animation there would draw
+            // the rows again on every frame (status_tail.rs).
+            trailing.extend(activity_trailing(
+                activity,
+                p,
+                reduced_motion || look == WorkingLineLook::Quiet,
+            ));
         }
         let gap = match look {
             WorkingLineLook::Capsule => VISUAL.gap,
@@ -403,6 +420,36 @@ impl NativeChatView {
                 )
             })
             .collect()
+    }
+}
+
+/// The line's lead glyph: a live activity's, the worked check, or the spark while the agent works.
+pub(super) fn working_line_lead(
+    card: &Value,
+    p: &ChatAppearance,
+    reduced_motion: bool,
+) -> Option<AnyElement> {
+    let s = p.scale;
+    match card["labelKind"].as_str().unwrap_or_default() {
+        "" => None,
+        "activity" => Some(activity_lead(&card["activity"], p, reduced_motion)),
+        "worked" => Some(
+            div()
+                .size(px(VISUAL.spark_box * s))
+                .flex_shrink_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    svg()
+                        .path("titlebar/check.svg")
+                        .size(px(VISUAL.spark_size * s))
+                        .text_color(p.muted),
+                )
+                .into_any_element(),
+        ),
+        _ if card["working"] == true => Some(spark(p, reduced_motion)),
+        _ => None,
     }
 }
 
