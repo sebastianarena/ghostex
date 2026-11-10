@@ -658,8 +658,24 @@ fn default_zmx_dirs() -> Vec<PathBuf> {
     folders
 }
 
+/// Reads a server id from an identity file, only if it is a small regular file: /tmp is shared by every account, and another account can put a FIFO where a /tmp home's identity file would be, which a plain read would wait on forever while this command holds the global lock. Opened non-blocking and without following a link, then checked on the open handle.
 fn read_server_id(identity_file: &Path) -> Option<String> {
-    let text = fs::read_to_string(identity_file).ok()?;
+    use std::io::Read;
+    use std::os::unix::fs::OpenOptionsExt;
+    const MAX_IDENTITY_BYTES: u64 = 4096;
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(identity_file)
+        .ok()?;
+    let meta = file.metadata().ok()?;
+    if !meta.is_file() || meta.len() > MAX_IDENTITY_BYTES {
+        return None;
+    }
+    let mut text = String::new();
+    file.take(MAX_IDENTITY_BYTES)
+        .read_to_string(&mut text)
+        .ok()?;
     let value: serde_json::Value = serde_json::from_str(&text).ok()?;
     value["serverId"].as_str().map(str::to_string)
 }
@@ -672,7 +688,11 @@ fn taken_server_ids(server: &Server) -> std::collections::HashSet<String> {
     ));
     for entry in fs::read_dir(servers_root()).into_iter().flatten().flatten() {
         let other = entry.file_name().to_string_lossy().into_owned();
-        if other != server.name {
+        // Only server folders: not the `.lock` file or anything that is not a valid server name (its /tmp home path is one another account could create).
+        if other != server.name
+            && validate_name(&other).is_ok()
+            && entry.file_type().is_ok_and(|kind| kind.is_dir())
+        {
             // Both layouts' identity files, whether or not the record loads: an invalid record can still belong to a running server, and its id must stay taken (an id is not secret, so reading it through a link is harmless).
             taken.extend(read_server_id(
                 &entry.path().join("home/state/gxserver/identity.json"),
