@@ -540,12 +540,10 @@ fn read_private_token(home: &Path, relative: &str) -> Option<String> {
     }
     // Closed on every path out of this function, by the File that owns it.
     let directory = unsafe { fs::File::from_raw_fd(directory) };
-    let mut stat: libc::stat = unsafe { std::mem::zeroed() };
+    use std::os::unix::fs::MetadataExt;
     use std::os::unix::io::AsRawFd;
-    if unsafe { libc::fstat(directory.as_raw_fd(), &mut stat) } != 0
-        || stat.st_uid != unsafe { libc::getuid() }
-        || u32::from(stat.st_mode) & 0o077 != 0
-    {
+    let meta = directory.metadata().ok()?;
+    if !meta.is_dir() || meta.uid() != unsafe { libc::getuid() } || meta.mode() & 0o077 != 0 {
         return None;
     }
     let file = unsafe {
